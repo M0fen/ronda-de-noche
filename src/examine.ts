@@ -38,6 +38,7 @@ export class Examine {
   use(d: ExamDef) {
     const s = this.stage.get(d.id) ?? 0;
     this.stage.set(d.id, s + 1);
+    this.game.player.focusOn(d.pos, 1.35); // the eye goes to it for a moment
     if (d.lines?.length) this.say(d.lines[Math.min(s, d.lines.length - 1)]);
     if (d.sound !== 'none') this.game.audio.touch(d.sound ?? 'tap');
     d.use?.(s, this);

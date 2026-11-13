@@ -241,11 +241,13 @@ export class Game {
     T.ev('retry');
     this.audio.suspend(false);
     this.story.restore();
-    this.post.u.uSheet.value = 0; this.post.u.uFade.value = 1;
+    this.post.u.uSheet.value = 0; this.post.u.uFade.value = 1; this.post.u.uShock.value = 0; this.post.u.uFocus.value = 0;
+    this.player.eyeH = 1.62; this.player.roll = 0; this.player.focusW = 0;
     this.camera.fov = this.settings.fov; this.camera.updateProjectionMatrix();
     this.audio.muffleTarget = 20000;
     this.fear = 0;
     this.mode = 'play'; this.ui.show(''); this.ui.hud(true); this.lock();
+    this.bark('retry', 'Otra vez. Ahora sin ser tan boleta.', 1.2);
   }
   quit() { location.reload(); }
   restartAll() { location.reload(); }
@@ -260,14 +262,14 @@ export class Game {
     if (this.mode !== 'play') return;
     this.mode = 'caught'; this.caughtT = 0; this.stats.caught++;
     T.ev('caught', { x: Math.round(this.player.pos.x * 10) / 10, z: Math.round(this.player.pos.z * 10) / 10, hid: this.player.inLocker?.id ?? null, by: this.nurse.state }); T.progress({ caught: this.stats.caught });
-    this.audio.stinger(true); if (!this.settings.reduced) this.audio.scream(); this.input.rumble(1, 1, 600);
-    this.player.shake = this.settings.reduced ? 0.2 : 1; this.player.breath.held = false;
+    this.audio.stinger(true); if (!this.settings.reduced) { this.audio.scream(); this.audio.shock(); this.post.u.uShock.value = 1; } this.input.rumble(1, 1, 700);
+    this.player.shake = this.settings.reduced ? 0.2 : 1.6; this.player.breath.held = false; this.player.focusOn(this.player.eye, 0); this.player.focusW = 0; this.post.u.uFocus.value = 0;
     this.nurse.glintBoost = 1;
     this.ui.hud(false); this.ui.interact(null); this.ui.tutorial('', null);
     this.cues.clear();
   }
   onChase() {
-    T.ev('chase');
+    T.ev('chase'); this.bark('chase', '¡Corra, mijo, corra!');
     this.audio.stinger(false);
     this.input.rumble(0.4, 0.8, 300);
     if (!this.story.tutDone.has('run')) this.story.queue('run');
@@ -303,6 +305,14 @@ export class Game {
     this.subtitle(text, pos);
   }
   debugNoise(x: number, z: number, r: number) { if (this.debug) this.debugNoises.push({ x, z, r, t: 1.2 }); }
+  // what you say to yourself the first time something happens (each once a night), under the crosshair
+  private barked = new Set<string>();
+  bark(id: string, text: string, delay = 0) {
+    if (this.barked.has(id)) return;
+    this.barked.add(id);
+    const go = () => { if (this.mode !== 'play') return; if (this.ui.thoughtActive()) { this.story.after(1.4, go); return; } this.ui.thought(text); };
+    if (delay) this.story.after(delay, go); else go();
+  }
 
   // ---- per-frame ----------------------------------------------------------------------
   private lastFocus: any = null;
@@ -347,8 +357,9 @@ export class Game {
     const target = this.focus();
     if (a.interact && target && !P.inLocker) { target.use(); a.interact = false; this.input.rumble(0, 0.12, 40); }
     P.update(dt, a);
-    const fov = this.settings.fov + P.fovKick;
+    const fov = this.settings.fov + P.fovKick - 11 * P.focusW;
     if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
+    this.post.u.uFocus.value = P.focusW;
     this.markFocus(target);
     if (this.mode !== 'play') return;
     if (N.rig.root.visible) N.update(dt, this.noises);
@@ -393,20 +404,34 @@ export class Game {
     this.caughtT += dt;
     const P = this.player, N = this.nurse, u = this.post.u, t = this.caughtT, reduced = this.settings.reduced;
     const head = N.rig.head.getWorldPosition(new THREE.Vector3());
-    if (!reduced && t < 1.5) {
+    if (!reduced && t < 3.2) {
+      // 1) she is on you in a blink, her face is all there is, and she shakes you; 2) she throws you down and
+      // leans over you; 3) the sheet (below)
       const dx = P.pos.x - N.pos.x, dz = P.pos.z - N.pos.z, d = Math.hypot(dx, dz);
-      if (d > 0.6 && !P.inLocker) { N.pos.x += (dx / d) * Math.min(d - 0.6, dt * 1.5); N.pos.z += (dz / d) * Math.min(d - 0.6, dt * 1.5); }
+      const want = t < 0.95 ? 0.4 : 0.62;
+      if (d > want && !P.inLocker) { const st = Math.min(d - want, dt * (t < 0.22 ? 16 : 3)); N.pos.x += (dx / d) * st; N.pos.z += (dz / d) * st; }
+      if (d > 0.01) { let ny = Math.atan2(dx, dz) - N.yaw; ny = Math.atan2(Math.sin(ny), Math.cos(ny)); N.yaw += ny * Math.min(1, dt * 14); }
       const vx = head.x - P.eye.x, vy = head.y - P.eye.y, vz = head.z - P.eye.z;
       const yaw = Math.atan2(-vx, -vz), pitch = Math.atan2(vy, Math.hypot(vx, vz));
       let dy = yaw - P.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-      P.yaw += dy * Math.min(1, dt * 7); P.pitch += (pitch - P.pitch) * Math.min(1, dt * 7);
-      this.camera.fov += (44 - this.camera.fov) * Math.min(1, dt * 3); this.camera.updateProjectionMatrix();
+      // the torch keeps exposing for her face (it would burn white at this distance), and stutters while she shakes you
+      P.exposeTo(Math.max(0.3, Math.hypot(vx, vy, vz)), t < 0.95 ? 0.45 + Math.random() * 0.75 : 0.8);
+      const k = Math.min(1, dt * (t < 0.3 ? 28 : 8));
+      P.yaw += dy * k; P.pitch += (pitch - P.pitch) * k;
+      const fovT = t < 0.12 ? 30 : t < 0.95 ? 38 : 52;
+      this.camera.fov += (fovT - this.camera.fov) * Math.min(1, dt * (t < 0.12 ? 45 : 6)); this.camera.updateProjectionMatrix();
+      if (t < 0.95) { P.shake = Math.max(P.shake, 1.5 - t); P.roll = Math.sin(t * 47) * 0.05 * (1 - t); }
+      else if (!P.inLocker) { P.eyeH += (0.5 - P.eyeH) * Math.min(1, dt * 11); P.roll += (0.32 - P.roll) * Math.min(1, dt * 8); } // on your back, head to one side
+      if (t > 0.95 && !this.cues.has('down')) { this.cues.add('down'); this.audio.thud(0.9); P.shake = 0.9; this.input.rumble(0.8, 0.5, 260); this.post.u.uShock.value = Math.max(this.post.u.uShock.value, 0.45); }
+      // the shock decays: two negative frames, then the red tearing dies away
+      const sk = this.post.u.uShock;
+      sk.value = t < 0.07 ? Math.max(sk.value, 1) : Math.max(0, Math.min(sk.value, 0.9) - dt * 1.15);
     }
     N.update(dt, []);
     P.syncCamera(dt);
-    if (t > 0.6 && !this.cues.has('hum')) { this.cues.add('hum'); this.audio.hum(true); }
-    if (t > 0.95 && !this.cues.has('line')) { this.cues.add('line'); if (this.audio.voiceLine('v_dormir', 1.3)) this.speech('Ya es hora de dormir.'); }
-    const s0 = reduced ? 0.2 : 1.35;
+    if (t > (reduced ? 0.6 : 1.3) && !this.cues.has('hum')) { this.cues.add('hum'); this.audio.hum(true); }
+    if (t > (reduced ? 0.95 : 1.45) && !this.cues.has('line')) { this.cues.add('line'); if (this.audio.voiceLine('v_dormir', 1.4)) this.speech('Ya es hora de dormir.'); }
+    const s0 = reduced ? 0.2 : 2.5;
     if (t > s0 && !this.cues.has('sheet')) { this.cues.add('sheet'); this.audio.sheet(); this.audio.muffleTarget = 500; }
     u.uSheet.value = THREE.MathUtils.smoothstep(t, s0, s0 + 1.0);
     u.uFade.value = THREE.MathUtils.smoothstep(t, s0 + 1.3, s0 + 2.1);

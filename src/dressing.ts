@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import type { Game } from './game';
 import { T } from './level';
-import { makeDecalAtlas, DECAL_SIZE, type DecalKind, type Atlas, nursesPhoto, founder, landscape, frameBack, clockFace, doorLeaf, silhouette, tapedSaint } from './decor';
+import { makeDecalAtlas, DECAL_SIZE, type DecalKind, type Atlas, nursesPhoto, founder, landscape, bodegon, nursePortrait, frameBack, clockFace, doorLeaf, silhouette, tapedSaint } from './decor';
 import { Examine, type ExamDef } from './examine';
 import { mergeStatic } from './merge';
 
@@ -130,52 +130,52 @@ export class Dressing {
     const d = (kind: DecalKind, at: Pose, o?: { s?: number; rot?: number; flip?: boolean; lift?: number }) => this.decal(kind, at, o);
     // WARD B
     const drag = d('handDrag', this.wall(1, 11, 'E', 0.3, 1.27), { s: 0.75 });
-    this.add({ id: 'drag', pos: drag, lines: ['Una mano que resbaló hasta el piso. Alguien se agarró de la pared mientras lo devolvían a la cama.'], aim: 0.93 });
+    this.add({ id: 'drag', pos: drag, lines: ['Una mano que resbaló hasta el piso. Alguien se agarró de la pared mientras lo devolvían a la cama.', 'Esa mano dice «no quiero volver a la cama». Yo tampoco, hermano.'], aim: 0.93 });
     d('handL', this.wall(1, 11, 'E', -0.34, 1.32), { rot: 0.35, s: 0.95 });
     const ojos = d('g_ojos', this.wall(14, 8, 'W', 0, 1.72));
-    this.add({ id: 'ojos', pos: ojos, range: 3.2, aim: 0.9, lines: ['Con carbón, por dentro del pabellón: SI CANTA, CIERRE LOS OJOS.'] });
+    this.add({ id: 'ojos', pos: ojos, range: 3.2, aim: 0.9, lines: ['Con carbón, por dentro del pabellón: SI CANTA, CIERRE LOS OJOS.', 'Ojalá no cante como mi tía en las novenas. Eso sí da miedo.'] });
     d('water', this.wall(3, 5, 'S', 0.2, 2.0)); d('mould', this.wall(3, 5, 'S', -0.4, 2.6), { s: 0.8 });
     d('mould', this.wall(12, 15, 'N', 0, 2.55), { s: 0.9, flip: true });
     d('handTips', this.wall(14, 12, 'W', 0.3, 1.45), { rot: -0.4 });
     const full = d('handR', this.wall(7, 15, 'N', 0.35, 1.38), { rot: 0.12 });
-    this.add({ id: 'fullhand', pos: full, lines: ['Una mano entera, abierta, a la altura de la cara. Como si alguien hubiera esperado aquí, con la frente contra la pared.'] });
+    this.add({ id: 'fullhand', pos: full, lines: ['Una mano entera, abierta, a la altura de la cara. Como si alguien hubiera esperado aquí, con la frente contra la pared.', 'Como castigado en el colegio, mirando la pared hasta que se olvidaron de él.'] });
     for (const [n, cx, cz, f] of [[1, 1, 7, 'E'], [2, 1, 9, 'E'], [3, 1, 11, 'E'], [4, 1, 13, 'E'], [5, 14, 7, 'W'], [6, 14, 13, 'W']] as [number, number, number, Face][]) d(('bed' + n) as DecalKind, this.wall(cx, cz, f, 0, 1.36));
     d('estampa0', this.wall(1, 9, 'E', -0.16, 1.18), { rot: 0.08 }); d('estampa1', this.wall(1, 9, 'E', 0.02, 1.2), { rot: -0.1 }); d('estampa0', this.wall(1, 9, 'E', 0.18, 1.16), { rot: 0.15, s: 0.9 });
     // child handprints on the outside of the ward's middle window
     const kid = d('handChild', { p: V(4.012, 1.5, 21.18), n: V(1, 0, 0), r: V(0, 0, -1) }, { rot: 0.15, lift: 0.003 });
     d('handChildL', { p: V(4.012, 1.36, 20.84), n: V(1, 0, 0), r: V(0, 0, -1) }, { rot: -0.2, lift: 0.003 });
-    this.add({ id: 'kidhands', pos: kid, aim: 0.9, lines: ['Manitos en el vidrio. Están por fuera.', 'Siguen ahí. Del lado de afuera.'] });
+    this.add({ id: 'kidhands', pos: kid, aim: 0.9, lines: ['Manitos en el vidrio. Están por fuera.', 'Siguen ahí. Del lado de afuera. ¿Qué niño anda afuera con este aguacero, a esta hora? Ninguno, ¿cierto?'] });
     // LINEN
     const soot = d('handSoot', this.wall(6, 15, 'S', 0.62, 1.3), { rot: -0.2 });
     d('handSoot', this.wall(8, 15, 'S', -0.55, 1.02), { rot: 0.5, s: 0.95, flip: true });
-    this.add({ id: 'soot', pos: soot, lines: ['Huellas negras de grasa. Los camilleros escondieron aquí los fusibles.'] });
+    this.add({ id: 'soot', pos: soot, lines: ['Huellas negras de grasa. Los camilleros escondieron aquí los fusibles.', 'Ni se lavaron las manos. Y eso que hay afiche.'] });
     const tal = d('tally', this.wall(9, 18, 'W', 0.1, 0.95));
-    this.add({ id: 'tally', pos: tal, lines: ['Rayitas de cinco en cinco. Cuarenta y tres. Alguien llevaba la cuenta de algo.', 'Cuarenta y tres. Las conté otra vez.'] });
+    this.add({ id: 'tally', pos: tal, lines: ['Rayitas de cinco en cinco. Cuarenta y tres. Alguien llevaba la cuenta de algo.', 'Cuarenta y tres. Las conté otra vez. Ojalá sean días y no personas.'] });
     // RECEPTION
     const claws = d('claws', this.wall(9, 18, 'E', -0.52, 0.78));
-    this.add({ id: 'claws', pos: claws, lines: ['Rasguños hondos en la pintura, a la altura de un niño. Alguien quería entrar a la lencería.'] });
+    this.add({ id: 'claws', pos: claws, lines: ['Rasguños hondos en la pintura, a la altura de un niño. Alguien quería entrar a la lencería.', 'O salir. Ay, no. ¿Pa\' qué pensé eso?'] });
     const ext = d('extensions', this.wall(9, 20, 'E', 0.32, 1.5), { rot: -0.03 });
     d('g_conteste', this.wall(9, 20, 'E', 0.33, 1.24));
-    this.add({ id: 'ext', pos: ext, lines: ['Extensiones. La del anfiteatro, la 300, tiene un círculo y dice «no contestar». Debajo, en la pared: NO CONTESTE.'], sound: 'paper' });
+    this.add({ id: 'ext', pos: ext, lines: ['Extensiones. La del anfiteatro, la 300, tiene un círculo y dice «no contestar». Debajo, en la pared: NO CONTESTE.', 'Tranquilos, que no hay línea. Aquí lo único que funciona es el susto.'], sound: 'paper' });
     const rat = d('rationing', this.wall(13, 17, 'S', 0.25, 1.5), { rot: 0.02 });
-    this.add({ id: 'rationing', pos: rat, lines: ['Horario de racionamiento, marzo de 1992. Sector 4: sin luz de 8 p. m. a 4 a. m. Abajo, a lápiz: «ella llega con el apagón».'], sound: 'paper' });
+    this.add({ id: 'rationing', pos: rat, lines: ['Horario de racionamiento, marzo de 1992. Sector 4: sin luz de 8 p. m. a 4 a. m. Abajo, a lápiz: «ella llega con el apagón».', 'Con la hora Gaviria uno ya ni sabe qué hora es. Igual ella llega con el apagón.'], sound: 'paper' });
     const vac = d('vaccination', this.wall(13, 24, 'N', 0, 1.48), { rot: -0.02 });
-    this.add({ id: 'vacc', pos: vac, lines: ['Jornada de vacunación, 1991. A los niños del afiche les rayaron los ojos con lapicero.'], sound: 'paper' });
+    this.add({ id: 'vacc', pos: vac, lines: ['Jornada de vacunación, 1991. A los niños del afiche les rayaron los ojos con lapicero.', 'Yo de niño lloraba con la vacuna. Esto es peor.'], sound: 'paper' });
     const wash = d('handwash', this.wall(22, 19, 'W', 0, 1.46));
-    this.add({ id: 'wash', pos: wash, lines: ['LÁVESE LAS MANOS. Debajo, a lápiz rojo: «no sale».'], sound: 'paper' });
+    this.add({ id: 'wash', pos: wash, lines: ['LÁVESE LAS MANOS. Debajo, a lápiz rojo: «no sale».', 'Ni con jabón Rey, parece.'], sound: 'paper' });
     const ghost = d('ghost', this.wall(22, 22, 'W', 0, 1.78));
-    this.add({ id: 'ghost', pos: ghost, lines: ['Aquí colgó un cuadro durante años. Lo descolgaron hace poco: el clavo todavía brilla.'] });
+    this.add({ id: 'ghost', pos: ghost, lines: ['Aquí colgó un cuadro durante años. Lo descolgaron hace poco: el clavo todavía brilla.', 'Uno menos que me mire. Chévere.'] });
     d('handSmearR', this.wall(22, 21, 'W', -0.5, 1.15), { rot: 0.6 });
     d('mould', this.wall(21, 24, 'N', 0.3, 2.6), { s: 0.8 });
     // MAIN CORRIDOR
     const trail = d('fingerTrail', this.wall(17, 14, 'W', 0, 1.2), { flip: true });
-    this.add({ id: 'trail', pos: trail, range: 2.2, aim: 0.9, lines: ['Rayas de dedos a la altura de la cadera, a lo largo de la pared. Alguien caminó a tientas hacia el pabellón.'] });
+    this.add({ id: 'trail', pos: trail, range: 2.2, aim: 0.9, lines: ['Rayas de dedos a la altura de la cadera, a lo largo de la pared. Alguien caminó a tientas hacia el pabellón.', 'A tientas, como yo buscando las velas cada vez que se va la luz.'] });
     const nod = d('g_noduerme', this.wall(17, 8, 'W', 0, 1.62));
-    this.add({ id: 'noduerme', pos: nod, range: 3.2, aim: 0.9, lines: ['Escrito con carbón: ELLA NO DUERME.', 'Alguien apretó tanto el carbón que se partió en la última letra.'] });
+    this.add({ id: 'noduerme', pos: nod, range: 3.2, aim: 0.9, lines: ['Escrito con carbón: ELLA NO DUERME.', 'Alguien apretó tanto el carbón que se partió en la última letra.', 'Ella no duerme. Yo, después de esta noche, tampoco.'] });
     const c3 = d('g_cama3', this.wall(14, 11, 'E', 0, 1.56));
-    this.add({ id: 'cama3', pos: c3, range: 2.6, aim: 0.9, lines: ['Con algo rojo, ya seco: CAMA 3, y una flecha hacia el pabellón.'] });
+    this.add({ id: 'cama3', pos: c3, range: 2.6, aim: 0.9, lines: ['Con algo rojo, ya seco: CAMA 3, y una flecha hacia el pabellón.', 'Ojalá sea salsa de tomate. Ojalá.'] });
     const face = d('water', this.wall(14, 13, 'E', 0.1, 2.0));
-    this.add({ id: 'face', pos: face.clone().setY(2.3), range: 3, aim: 0.9, lines: ['Una mancha de humedad. Si uno la mira mucho rato, tiene cara.', 'Tiene cara.'] });
+    this.add({ id: 'face', pos: face.clone().setY(2.3), range: 3, aim: 0.9, lines: ['Una mancha de humedad. Si uno la mira mucho rato, tiene cara.', 'Tiene cara.', 'Y se parece a mi profesor de matemáticas.'] });
     d('mould', this.wall(17, 16, 'W', 0.2, 2.6), { s: 0.7 });
     d('handL', this.wall(17, 12, 'W', 0.5, 1.2), { rot: -0.25, s: 0.9 });
     // wet bare feet from the corridor puddle into the ward, none coming back
@@ -190,20 +190,20 @@ export class Dressing {
         k++;
       }
     }
-    this.add({ id: 'feet', pos: V(30.9, 0.1, 25.5), range: 2.6, aim: 0.82, lines: ['Pisadas descalzas, mojadas. Pies pequeños. Van hacia el pabellón y ninguna vuelve.'] });
+    this.add({ id: 'feet', pos: V(30.9, 0.1, 25.5), range: 2.6, aim: 0.82, lines: ['Pisadas descalzas, mojadas. Pies pequeños. Van hacia el pabellón y ninguna vuelve.', '¿Descalzo con este frío? Mi mamá ya lo habría regañado.'] });
     // NORTH CORRIDOR
     const vis = d('g_visitas', this.wall(24, 2, 'S', 0, 1.45));
-    this.add({ id: 'visitas', pos: vis, range: 3, aim: 0.9, lines: ['Con pintalabios: LAS VISITAS ERAN HASTA LAS 8.'] });
+    this.add({ id: 'visitas', pos: vis, range: 3, aim: 0.9, lines: ['Con pintalabios: LAS VISITAS ERAN HASTA LAS 8.', 'Y yo llegando a las 3:47. Me van a regañar.'] });
     d('water', this.wall(6, 2, 'S', 0, 2.0), { flip: true }); d('mould', this.wall(12, 2, 'S', 0, 2.6));
     d('handTips', this.wall(20, 5, 'N', 0.2, 1.3), { rot: 0.5 });
     d('claws', this.wall(13, 5, 'N', -0.3, 1.4), { s: 0.8, rot: 0.2 });
     // DAY ROOM
     const cray = d('crayon', this.wall(17, 12, 'E', 0, 1.02), { rot: 0.04 });
-    this.add({ id: 'crayon', pos: cray, lines: ['Un dibujo de crayola. Seis camitas con gente acostada, todos con los ojos cerrados. Una enfermera alta, sin cara. Arriba: LA ENFERMERA CANTA. Lo firma Mariana, cama 6.'], sound: 'paper' });
+    this.add({ id: 'crayon', pos: cray, lines: ['Un dibujo de crayola. Seis camitas con gente acostada, todos con los ojos cerrados. Una enfermera alta, sin cara. Arriba: LA ENFERMERA CANTA. Lo firma Mariana, cama 6.', 'Mariana dibuja mejor que yo. Y da más miedo.'], sound: 'paper' });
     d('water', this.wall(29, 12, 'W', 0.3, 2.0)); d('mould', this.wall(29, 7, 'W', 0, 2.6), { s: 0.9 });
     // BREAKER ROOM
     const sc = d('scorch', this.wall(28, 20, 'W', 0.05, 2.15));
-    this.add({ id: 'scorch', pos: sc.clone().setY(2.3), range: 2.6, aim: 0.88, lines: ['Hollín sobre el tablero. Alguien hizo saltar los breakers a la fuerza.'] });
+    this.add({ id: 'scorch', pos: sc.clone().setY(2.3), range: 2.6, aim: 0.88, lines: ['Hollín sobre el tablero. Alguien hizo saltar los breakers a la fuerza.', 'Con razón no hay luz. Esto no lo arregla ni el electricista del barrio.'] });
   }
 
   // ---- framed pictures that change ------------------------------------------------------------
@@ -217,30 +217,65 @@ export class Dressing {
       id: 'photo', pos: ph.mesh.position, range: 2.3, aim: 0.9, label: 'Mirar la foto', sound: 'glass',
       use: s => {
         if (s === 0) { ex.say('Promoción de enfermería, 1974. Doce hermanas. A una le rasparon la cara con la uña. Debajo del vidrio, a lápiz: «K.»'); ex.whenUnseen('photo', ph.mesh.position, 7, () => { ph.mat.map = photo13; ph.mat.needsUpdate = true; thirteen = true; }); }
-        else if (!thirteen) ex.say('Doce. Las conté dos veces.');
-        else if (!G.story.flags.photo13) { G.story.flags.photo13 = true; ex.say('Ahora son trece. La de atrás no estaba. Está un poco movida, como si no se hubiera quedado quieta para la foto.'); if (!G.settings.reduced) G.audio.stinger(false); }
-        else ex.say('Trece.');
+        else if (!thirteen) ex.say('Doce. Las conté dos veces. Ninguna sonríe; la del medio tiene cara de que le deben plata.');
+        else if (!G.story.flags.photo13) { G.story.flags.photo13 = true; ex.say('Ahora son trece. La de atrás no estaba. Y tiene la cabeza caída sobre el hombro, de lado, como si se le hubiera zafado.'); if (!G.settings.reduced) G.audio.stinger(false); }
+        else ex.say('Trece. Ave María purísima.');
       },
     });
     // the founder, behind reception, eyes taped
     const fd = this.framed(founder(), 0.55, 0.7, this.wall(9, 22, 'E', 0, 1.85));
-    this.add({ id: 'founder', pos: fd.mesh.position, range: 2.6, aim: 0.88, label: 'Mirar el cuadro', sound: 'wood', lines: ['El doctor Aurelio Sarmiento, fundador. Le taparon los ojos con esparadrapo, en cruz.', 'El esparadrapo está húmedo. Y tibio.', 'Aquí a todos les tapan los ojos.'] });
+    const bare = founder(true);
+    let isBare = false;
+    this.add({
+      id: 'founder', pos: fd.mesh.position, range: 2.6, aim: 0.88, label: 'Mirar el cuadro', sound: 'wood',
+      use: s => {
+        if (s === 0) { ex.say('El doctor Aurelio Sarmiento, fundador. Le taparon los ojos con esparadrapo, en cruz.'); ex.whenUnseen('founder', fd.mesh.position, 6, () => { fd.mat.map = bare; fd.mat.needsUpdate = true; isBare = true; }); }
+        else if (!isBare) ex.say('Con esa cara de bravo, mejor que no vea.');
+        else if (!G.story.flags.founderBare) { G.story.flags.founderBare = true; ex.say('Se le cayó el esparadrapo. No tiene ojos. Y antes no se estaba riendo.'); if (!G.settings.reduced) G.audio.stinger(false); }
+        else ex.say('Sigue riéndose. Yo no.');
+      },
+    });
     // a sabana landscape in the day room
-    const ls = this.framed(landscape(false), 0.7, 0.5, this.wall(20, 14, 'N', 0, 1.65));
+    const ls = this.framed(landscape(false), 0.75, 0.52, this.wall(20, 14, 'N', 0, 1.65));
     const lit = landscape(true);
     let isLit = false;
     this.add({
       id: 'landscape', pos: ls.mesh.position, range: 2.6, aim: 0.88, label: 'Mirar el cuadro', sound: 'wood',
       use: s => {
-        if (s === 0) { ex.say('Un paisaje de la sabana. Eucaliptos, una casita con la ventana apagada.'); ex.whenUnseen('land', ls.mesh.position, 9, () => { ls.mat.map = lit; ls.mat.needsUpdate = true; isLit = true; }); }
-        else if (isLit) ex.say(G.story.flags.landLit ? 'Sigue mirando hacia acá.' : (G.story.flags.landLit = true, 'En la ventana de la casita ahora hay luz. Y alguien mirando hacia acá.'));
-        else ex.say('La ventana de la casita sigue apagada.');
+        if (s === 0) { ex.say('Un paisaje cafetero: palmas de cera, una finca de balcones rojos y un Willys cargado de café. Muy de Salento.'); ex.whenUnseen('land', ls.mesh.position, 8, () => { ls.mat.map = lit; ls.mat.needsUpdate = true; isLit = true; }); }
+        else if (isLit) {
+          if (!G.story.flags.landLit) { G.story.flags.landLit = true; ex.say('Ahora es de noche en el cuadro. En cada surco hay un recolector, todos mirando hacia acá, sin cara. Y la luna tiene un ojo.'); if (!G.settings.reduced) G.audio.stinger(false); }
+          else ex.say('Ninguno está recogiendo café. Están esperando. Qué boleta.');
+        } else ex.say('Me provoca un tinto. Y salir de aquí.');
+      },
+    });
+    // a still life in the day room: one guava has an eye; give it a moment and they all do
+    const bd = this.framed(bodegon(false), 0.62, 0.48, this.wall(17, 8, 'E', 0, 1.62));
+    const allEyes = bodegon(true);
+    let eyed = false;
+    this.add({
+      id: 'bodegon', pos: bd.mesh.position, range: 2.6, aim: 0.88, label: 'Mirar el cuadro', sound: 'wood',
+      use: s => {
+        if (s === 0) { ex.say('Un bodegón: lulos, guayabas, una granadilla, bananos. A la guayaba partida le pintaron un ojo en vez de semillas.'); ex.whenUnseen('bodegon', bd.mesh.position, 7, () => { bd.mat.map = allEyes; bd.mat.needsUpdate = true; eyed = true; }); }
+        else if (!eyed) ex.say('Ni en la galería de Pereira venden eso.');
+        else if (!G.story.flags.bodegon) { G.story.flags.bodegon = true; ex.say('Ahora todas las frutas tienen ojos. Y todas me miran a mí. Jamás vuelvo a tomar jugo de lulo.'); if (!G.settings.reduced) G.audio.stinger(false); }
+        else ex.say('Me siguen mirando. Hasta los bananos.');
       },
     });
     // above bed 3, a holy picture turned to face the wall
     const fb = this.framed(frameBack(), 0.4, 0.52, this.wall(1, 11, 'E', -0.05, 1.86));
     fb.mesh.rotation.z = 0.04;
-    this.add({ id: 'turned', pos: fb.mesh.position, range: 2.6, aim: 0.88, label: 'Mirar el cuadro', sound: 'wood', lines: ['Una lámina volteada contra la pared. Por detrás, a lápiz: «para que no vea».', 'Mejor no voltearla.'] });
+    const portrait = nursePortrait();
+    let faced = false;
+    this.add({
+      id: 'turned', pos: fb.mesh.position, range: 2.6, aim: 0.88, label: 'Mirar el cuadro', sound: 'wood',
+      use: s => {
+        if (s === 0) ex.say('Una lámina volteada contra la pared. Por detrás, a lápiz: «para que no vea».');
+        else if (s === 1 && !faced) { ex.say('Mejor no voltearla. Mi abuela decía que lo que está volteado se deja volteado.'); ex.whenUnseen('turned', fb.mesh.position, 8, () => { fb.mat.map = portrait; fb.mat.needsUpdate = true; fb.mesh.rotation.z = -0.02; faced = true; }); }
+        else if (faced && !G.story.flags.turnedFaced) { G.story.flags.turnedFaced = true; ex.say('Alguien la volteó. Es una hermana sin cara, con la boca cosida. Yo no fui.'); if (!G.settings.reduced) G.audio.stinger(false); }
+        else ex.say(faced ? 'No tiene ojos, pero igual siento que me mira.' : 'Sigue volteada. Así está bien.');
+      },
+    });
   }
 
   // ---- ward B ---------------------------------------------------------------------------------------
@@ -276,7 +311,7 @@ export class Dressing {
         this.add({
           id: 'musicbox', pos: boxPos, range: 1.9, aim: 0.9, label: () => (playing > 0 ? 'Suena' : 'Dar cuerda'), sound: 'wood', enabled: () => playing <= 0,
           use: s => {
-            if (s === 0) ex.say('Una cajita de música con una bailarina sin cabeza. Toca la canción que ella tararea.');
+            if (s === 0) ex.say('Una cajita de música con una bailarina sin cabeza. Toca la canción que ella tararea.'); else if (s === 1) ex.say('La bailarina sin cabeza baila mejor que yo en diciembre.');
             const dur = G.audio.musicBox({ x: boxPos.x, y: boxPos.y, z: boxPos.z }, 0, HER_SONG, 0.6);
             playing = dur;
             this.noise(boxPos.x, boxPos.z, 14, 0.55, 'music');
@@ -312,12 +347,12 @@ export class Dressing {
       }
       const c = G.level.center(cx, cz);
       const lines: Record<number, string[]> = {
-        1: ['Cama 1. Las correas de cuero están abrochadas. No hay nadie adentro.', 'Abrochadas desde afuera.'],
-        2: ['Cama 2. Estampitas pegadas en la cabecera. Detrás de una, a lápiz: «que no me cante a mí».'],
-        3: ['Cama 3. Hay alguien acostado... No. Son almohadas, amarradas con gasa en forma de persona.', 'A la almohada de arriba le dibujaron una cara con lapicero. Los ojos están cerrados.', 'Está tibia.'],
-        4: ['Cama 4. Tendida con esquinas de hospital. Perfecta. Como si nadie se hubiera ido nunca.'],
-        5: ['Cama 5. Las sábanas están en el piso. «La paciente no permaneció en cama.»'],
-        6: ['Cama 6. Una pulsera de paciente: «Mariana R. · Cama 6 · Ingreso 13-III-92».', 'La pulsera está cortada con tijera.'],
+        1: ['Cama 1. Las correas de cuero están abrochadas. No hay nadie adentro.', 'Abrochadas desde afuera. Ni en la cárcel de La 40.'],
+        2: ['Cama 2. Estampitas pegadas en la cabecera. Detrás de una, a lápiz: «que no me cante a mí».', 'Tiene más estampitas que la buseta de mi tío.'],
+        3: ['Cama 3. Hay alguien acostado... No. Son almohadas, amarradas con gasa en forma de persona.', 'A la almohada de arriba le dibujaron una cara con lapicero. Los ojos están cerrados.', 'Está tibia. ¿Por qué está tibia?'],
+        4: ['Cama 4. Tendida con esquinas de hospital. Perfecta. Como si nadie se hubiera ido nunca.', 'Mejor tendida que la mía. No le vayan a contar a mi mamá.'],
+        5: ['Cama 5. Las sábanas están en el piso. «La paciente no permaneció en cama.»', 'Yo tampoco permanecería. Pero aquí estoy.'],
+        6: ['Cama 6. Una pulsera de paciente: «Mariana R. · Cama 6 · Ingreso 13-III-92».', 'La pulsera está cortada con tijera. Ojalá se haya volado.'],
       };
       this.add({ id: 'bed' + n, pos: V(c.x, 0.72, c.z), range: 2.1, aim: 0.86, label: 'Revisar la cama', sound: 'cloth', lines: lines[n] });
     }
@@ -329,11 +364,11 @@ export class Dressing {
     const steamM = new THREE.SpriteMaterial({ map: G.tex.glint, color: 0x9a9690, transparent: true, depthWrite: false, opacity: 0 });
     const puffs = [0, 1, 2].map(i => { const s = new THREE.Sprite(steamM.clone()); s.scale.setScalar(0.04); cup.add(s); s.userData.p = i / 3; return s; });
     this.anim.push(dt => { for (const s of puffs) { s.userData.p = (s.userData.p + dt * 0.35) % 1; const p = s.userData.p; s.position.set(Math.sin(p * 6 + s.id) * 0.012, 0.07 + p * 0.16, 0); s.scale.setScalar(0.03 + p * 0.07); (s.material as THREE.SpriteMaterial).opacity = Math.sin(p * Math.PI) * 0.22; } });
-    this.add({ id: 'tinto', pos: V(desk.x + 0.55, 0.85, desk.z + 0.12), range: 1.9, aim: 0.9, label: 'Examinar', sound: 'glass', lines: ['Un pocillo de tinto. Todavía está tibio.', 'Tibio. Alguien estuvo aquí hace nada.'] });
+    this.add({ id: 'tinto', pos: V(desk.x + 0.55, 0.85, desk.z + 0.12), range: 1.9, aim: 0.9, label: 'Examinar', sound: 'glass', lines: ['Un pocillo de tinto. Todavía está tibio.', 'Tibio. Alguien estuvo aquí hace nada.', 'Y ni me brindaron. Qué gente.'] });
     // trolleys and the linen shelves
     const tr = G.level.center(3, 4); void tr;
-    this.add({ id: 'cart', pos: V(13, 0.95, 17), range: 2.0, aim: 0.85, sound: 'metal', lines: ['Un carro de curaciones. Gasa, alcohol... y rollos y rollos de esparadrapo.', 'Esparadrapo para tapar ojos.'] });
-    this.add({ id: 'shelves', pos: V(8.2, 1.2, 35), range: 2.2, aim: 0.82, sound: 'cloth', lines: ['Sábanas almidonadas, dobladas en cuadro. Todas tienen bordado el mismo número: 3.'] });
+    this.add({ id: 'cart', pos: V(13, 0.95, 17), range: 2.0, aim: 0.85, sound: 'metal', lines: ['Un carro de curaciones. Gasa, alcohol... y rollos y rollos de esparadrapo.', 'Esparadrapo para tapar ojos. Aquí todo el presupuesto se va en esparadrapo.'] });
+    this.add({ id: 'shelves', pos: V(8.2, 1.2, 35), range: 2.2, aim: 0.82, sound: 'cloth', lines: ['Sábanas almidonadas, dobladas en cuadro. Todas tienen bordado el mismo número: 3.', 'Las dobla mejor que mi mamá. Eso no se lo digo a nadie.'] });
   }
 
   // ---- reception -----------------------------------------------------------------------------------
@@ -381,7 +416,7 @@ export class Dressing {
           });
           return;
         }
-        ex.say(s === 0 ? 'Sin tono. Solo un zumbido, muy lejos.' : s === 1 ? 'Nada. Ni siquiera el zumbido.' : 'Muerto.');
+        ex.say(s === 0 ? 'Sin tono. Solo un zumbido, muy lejos.' : s === 1 ? 'Nada. Ni siquiera el zumbido.' : 'Muerto. Como el teléfono de la casa cuando no pagamos.');
       },
     });
     // the counter bell
@@ -414,7 +449,7 @@ export class Dressing {
     const sec = hands(0.16, 0.003, 12 / 60 * Math.PI * 2, 0.034); sec.userData.dynamic = true;
     const secBase = sec.rotation.z; let tk = 0;
     this.anim.push(dt => { tk += dt; const f = tk % 1.0; sec.rotation.z = secBase - (f < 0.12 ? Math.sin(f / 0.12 * Math.PI) * 0.1 : 0); if (f < dt && Math.hypot(G.player.pos.x - clk.p.x, G.player.pos.z - clk.p.z) < 7) A.tick({ x: clk.p.x, y: clk.p.y, z: clk.p.z }, 0, 0.6); });
-    this.add({ id: 'clock', pos: cg.position, range: 3.0, aim: 0.9, label: 'Mirar el reloj', sound: 'none', lines: ['El reloj se paró a las 3:47.', 'Las 3:47. El segundero tiembla, como si quisiera seguir.', 'Las 3:47.'] });
+    this.add({ id: 'clock', pos: cg.position, range: 3.0, aim: 0.9, label: 'Mirar el reloj', sound: 'none', lines: ['El reloj se paró a las 3:47.', 'Las 3:47. El segundero tiembla, como si quisiera seguir.', 'O las 4:47, con la hora Gaviria. Da igual: es tarde.'] });
     // San Jorge and the candles: the saint's eyes get taped while you look away; then the candles go out
     const pr = G.props;
     const taped = tapedSaint(G.tex.sanJorge.image as HTMLCanvasElement);
@@ -436,8 +471,8 @@ export class Dressing {
         ex.say(out ? 'Las mechas todavía humean.' : G.story.flags.relit ? 'Las velas se volvieron a prender solas.' : 'El esparadrapo es nuevo.');
       },
     });
-    this.add({ id: 'calendar', pos: pr.calendarMesh.position, range: 2.4, aim: 0.9, label: 'Mirar el calendario', sound: 'paper', lines: ['Marzo de 1992. Tachados hasta el 13. En el 14, a lápiz: «turno Hna. K.».', 'Debajo hay más hojas. Abril, mayo, junio... todos los días tachados. Todos dicen «turno Hna. K.».'] });
-    this.add({ id: 'chairs', pos: V(37.6, 0.6, 41), range: 2.4, aim: 0.85, label: 'Examinar', sound: 'cloth', lines: ['Sillas de espera. En una, un ramo de flores secas envuelto en el periódico del 13 de marzo.'] });
+    this.add({ id: 'calendar', pos: pr.calendarMesh.position, range: 2.4, aim: 0.9, label: 'Mirar el calendario', sound: 'paper', lines: ['Marzo de 1992. Tachados hasta el 13. En el 14, a lápiz: «turno Hna. K.».', 'Debajo hay más hojas. Abril, mayo, junio... todos los días tachados. Todos dicen «turno Hna. K.».', 'Ni un festivo le dieron. En este país, con tanto puente. Con razón está así.'] });
+    this.add({ id: 'chairs', pos: V(37.6, 0.6, 41), range: 2.4, aim: 0.85, label: 'Examinar', sound: 'cloth', lines: ['Sillas de espera. En una, un ramo de flores secas envuelto en El Diario del Otún del 13 de marzo.', 'Las flores eran pa\' alguien de la cama 3. Nunca llegaron.'] });
     void brassM;
   }
 
@@ -448,7 +483,7 @@ export class Dressing {
     const cb = this.wall(21, 5, 'S', 0, 1.55);
     const board = this.decal('cork', cb, { lift: 0.012 });
     this.box(0.97, 0.66, 0.012, lam({ color: 0x3a2414 }), cb.p.x, cb.p.y, cb.p.z + 0.006);
-    this.add({ id: 'cork', pos: board, range: 2.4, aim: 0.86, label: 'Leer la cartelera', sound: 'paper', lines: ['Cartelera. «Visitas hasta las 8. Sin excepción. K.» Una foto con la cara recortada. Un papelito: «Recen por los de la cama 3. Por todos.»'] });
+    this.add({ id: 'cork', pos: board, range: 2.4, aim: 0.86, label: 'Leer la cartelera', sound: 'paper', lines: ['Cartelera. «Visitas hasta las 8. Sin excepción. K.» Una foto con la cara recortada. Un papelito: «Recen por los de la cama 3. Por todos.»', 'Sin excepción. Ni que esto fuera la Registraduría.'] });
     // the transistor radio on the TV cabinet
     const rp = V(57.7, 0.7, 19.45);
     const radio = new THREE.Group(); radio.position.copy(rp); radio.rotation.y = -Math.PI / 2; this.group.add(radio);
@@ -489,7 +524,7 @@ export class Dressing {
         } else ex.say(s === 0 ? 'Un televisor de perilla, desenchufado. En la pantalla apagada se ve la sala, vacía.' : 'Solo la sala, vacía, reflejada en el vidrio.');
       },
     });
-    this.add({ id: 'dchairs', pos: V(45.5, 0.6, 19), range: 2.4, aim: 0.84, label: 'Examinar', sound: 'cloth', lines: ['Las sillas miran hacia el televisor apagado. Una todavía está tibia.'] });
+    this.add({ id: 'dchairs', pos: V(45.5, 0.6, 19), range: 2.4, aim: 0.84, label: 'Examinar', sound: 'cloth', lines: ['Las sillas miran hacia el televisor apagado. Una todavía está tibia.', 'Seguro estaban esperando Sábados Felices.'] });
   }
 
   // ---- corridors ------------------------------------------------------------------------------------
@@ -516,15 +551,15 @@ export class Dressing {
         else ex.say(stopped ? 'Ahora la rueda está quieta. Como si alguien la hubiera agarrado.' : 'La rueda gira.');
       },
     });
-    this.add({ id: 'gurney', pos: V(33, 0.95, 17), range: 2.1, aim: 0.85, label: 'Revisar la camilla', sound: 'cloth', lines: ['Una camilla. La sábana tiene la forma de alguien.', 'Debajo solo hay almohadas, acomodadas como una persona. Están tibias.'] });
-    this.add({ id: 'meds', pos: V(31, 0.95, 25), range: 2.0, aim: 0.86, label: 'Revisar el carro', sound: 'metal', lines: ['Un carro de medicamentos, un cajón por cama. El de la cama 3 está lleno de frasquitos vacíos de gotas para dormir.'] });
-    this.add({ id: 'mattress', pos: V(30.5, 0.9, 27.4), range: 2.0, aim: 0.85, sound: 'cloth', lines: ['Un colchón con la forma de alguien hundida en el centro. Huele a formol.'] });
-    this.add({ id: 'emlight', pos: V(32, 2.75, 21), range: 2.6, aim: 0.9, label: 'Mirar la lámpara', sound: 'none', lines: ['Una lámpara de emergencia. En la etiqueta: «Revisada · Hna. K. · 13-III-92».'] });
-    this.add({ id: 'crucifix', pos: pr.crucifix.position, range: 2.6, aim: 0.9, label: 'Mirar el crucifijo', sound: 'none', lines: ['Un crucifijo sobre la puerta del pabellón. Al Cristo también le taparon los ojos.', 'Aquí a todos les tapan los ojos.'] });
+    this.add({ id: 'gurney', pos: V(33, 0.95, 17), range: 2.1, aim: 0.85, label: 'Revisar la camilla', sound: 'cloth', lines: ['Una camilla. La sábana tiene la forma de alguien.', 'Debajo solo hay almohadas, acomodadas como una persona. Están tibias.', 'El truco de las almohadas. Yo lo hacía para volarme del colegio.'] });
+    this.add({ id: 'meds', pos: V(31, 0.95, 25), range: 2.0, aim: 0.86, label: 'Revisar el carro', sound: 'metal', lines: ['Un carro de medicamentos, un cajón por cama. El de la cama 3 está lleno de frasquitos vacíos de gotas para dormir.', 'Con eso duerme uno hasta el otro Mundial.'] });
+    this.add({ id: 'mattress', pos: V(30.5, 0.9, 27.4), range: 2.0, aim: 0.85, sound: 'cloth', lines: ['Un colchón con la forma de alguien hundida en el centro. Huele a formol.', 'A formol y a sancocho viejo. Mal plan.'] });
+    this.add({ id: 'emlight', pos: V(32, 2.75, 21), range: 2.6, aim: 0.9, label: 'Mirar la lámpara', sound: 'none', lines: ['Una lámpara de emergencia. En la etiqueta: «Revisada · Hna. K. · 13-III-92».', 'Revisada y todo, y no prende. Típico.'] });
+    this.add({ id: 'crucifix', pos: pr.crucifix.position, range: 2.6, aim: 0.9, label: 'Mirar el crucifijo', sound: 'none', lines: ['Un crucifijo sobre la puerta del pabellón. Al Cristo también le taparon los ojos.', 'Aquí a todos les tapan los ojos. Hasta a él.'] });
     // windows: every one looks out on a blacked-out city; looking draws the lightning
     pr.windows.forEach((w, i) => {
       if (i === 1) return; // the one with the small hands has its own lines
-      this.add({ id: 'win' + i, pos: V(w.x + w.nx * 0.05, 1.7, w.z + w.nz * 0.05), range: 2.3, aim: 0.86, label: 'Mirar por la ventana', sound: 'glass', lines: ['Afuera, la ciudad está a oscuras. Racionamiento.', 'Llueve. Ni una luz en ninguna casa.'], use: () => G.storm?.strike(0.6) });
+      this.add({ id: 'win' + i, pos: V(w.x + w.nx * 0.05, 1.7, w.z + w.nz * 0.05), range: 2.3, aim: 0.86, label: 'Mirar por la ventana', sound: 'glass', lines: ['Afuera, Pereira está a oscuras. Racionamiento.', 'Llueve. Ni en Dosquebradas hay una luz.', 'Y yo aquí, en vez de estar en la casa con una vela y un tinto.'], use: () => G.storm?.strike(0.6) });
     });
   }
 
@@ -570,7 +605,7 @@ export class Dressing {
     };
     if (exit) exit.use = () => {
       const s = exS++;
-      ex.say(['Encadenadas por fuera. No se mueven.', 'Por la rendija se ve la calle. Ni una luz en toda la ciudad.', 'Afuera sigue lloviendo. Nadie viene.'][Math.min(s, 2)]);
+      ex.say(['Encadenadas por fuera. No se mueven.', 'Por la rendija se ve la calle. Ni una luz en toda la ciudad.', '¿Y entonces yo por dónde salgo? Qué boleta.', 'Afuera sigue lloviendo. Nadie viene.'][Math.min(s, 3)]);
       A.metal({ x: 32, y: 1.1, z: 47.8 }, 0);
     };
   }

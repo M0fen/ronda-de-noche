@@ -30,6 +30,21 @@ export class Player {
   crouchToggle = false; crouchHeldT = 0; crouchMomentary = false; stepPhase = 0; stepCount = 0; roll = 0; fovKick = 0; bumpT = 0;
   bounce: THREE.PointLight; aimD = 6;
   stepAcc = 0; crankT = 0; darkT = 0; shake = 0; lowWarned = false; dipT = 0;
+  // a short, guided look at something: the view eases onto it, the field narrows and the edges soften
+  focusW = 0; private focusT = 0; private focusDur = 0; private focusK = 1; private focusAt = new THREE.Vector3();
+  focusOn(p: THREE.Vector3, dur = 1.3, strength = 1) { this.focusAt.copy(p); this.focusDur = dur; this.focusT = 0; this.focusK = strength; }
+  private updateFocus(dt: number) {
+    if (this.focusDur <= 0) { this.focusW = Math.max(0, this.focusW - dt * 4); return; }
+    this.focusT += dt;
+    const t = this.focusT, D = this.focusDur, ss = THREE.MathUtils.smoothstep;
+    this.focusW = ss(t, 0, 0.22) * (1 - ss(t, D - 0.45, D));
+    const vx = this.focusAt.x - this.eye.x, vy = this.focusAt.y - this.eye.y, vz = this.focusAt.z - this.eye.z;
+    const yaw = Math.atan2(-vx, -vz), pitch = Math.atan2(vy, Math.hypot(vx, vz));
+    let dy = yaw - this.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    const k = Math.min(1, dt * 7) * this.focusW * this.focusK;
+    this.yaw += dy * k; this.pitch += (pitch - this.pitch) * k;
+    if (t >= D) this.focusDur = 0;
+  }
   focus: any = null;
   private bottleMesh: THREE.Object3D;
 
@@ -83,6 +98,8 @@ export class Player {
 
   get light01() { return LEVELS[this.torch.level]; }
   updateLight() { const lv = LEVELS[this.torch.level]; this.light.intensity = this.torch.on ? lv.intensity : 0; }
+  /** the torch's auto-exposure for something at distance d (used while she has you and the update isn't running) */
+  exposeTo(d: number, flick = 1) { const lv = LEVELS[this.torch.level]; this.light.intensity = this.torch.on ? lv.intensity * flick * THREE.MathUtils.clamp((d / 6) ** 1.6, 0.03, 1) : 0; }
 
   visibility() {
     const G = this.game;
@@ -108,7 +125,8 @@ export class Player {
     const G = this.game, L = G.level, A = G.audio;
     if (this.inLocker) { this.updateLocker(dt, a); this.updateTorch(dt, a); this.syncCamera(dt); return; }
 
-    this.yaw -= a.lx; this.pitch = THREE.MathUtils.clamp(this.pitch - a.ly, -1.35, 1.3);
+    this.yaw -= a.lx * (1 - this.focusW * 0.7); this.pitch = THREE.MathUtils.clamp(this.pitch - a.ly * (1 - this.focusW * 0.7), -1.35, 1.3);
+    this.updateFocus(dt);
     // tap = toggle; hold past a beat = momentary, standing back up on release
     if (a.crouch) { this.crouchToggle = !this.crouchToggle; this.crouchHeldT = 0; this.crouchMomentary = false; G.story.tut('crouch-done'); }
     if (a.crouchHold && this.crouchToggle) { this.crouchHeldT += dt; if (this.crouchHeldT > 0.35) this.crouchMomentary = true; }
@@ -188,7 +206,7 @@ export class Player {
       if (this.crankT <= 0) { this.crankT = 0.32; A.crank(); this.noise(13, 0.9, 'crank'); G.subtitleThrottled('crank', 'Zumba la manivela', undefined, 8); G.input.rumble(0, 0.15, 60); }
       G.story.tut('crank');
     }
-    if (t.on) { t.battery -= dt * LEVELS[t.level].drain; if (t.battery <= 0) { t.battery = 0; t.on = false; A.click(); A.torchDie(0.55); G.subtitle('Se apaga la linterna.'); } }
+    if (t.on) { t.battery -= dt * LEVELS[t.level].drain; if (t.battery <= 0) { t.battery = 0; t.on = false; A.click(); A.torchDie(0.55); G.subtitle('Se apaga la linterna.'); G.bark('dead', 'Ay, no. Esto es de manivela, como el radio del abuelo.', 0.8); } }
     // the first warning: the bulb browns out for a moment as the charge drops under 15
     if (t.on && t.battery < 15 && !this.lowWarned) { this.lowWarned = true; this.dipT = 0.5; A.torchDie(0.22); G.subtitle('La linterna parpadea: poca carga'); }
     if (t.battery > 25) this.lowWarned = false;
@@ -308,6 +326,7 @@ export class Player {
     if (l.kind === 'bed') this.game.audio.bed(false); else this.game.audio.locker();
     this.noise(l.kind === 'bed' ? 3.5 : 5, 0.5, 'locker');
     this.game.nurse.onPlayerEnteredLocker(l);
+    if (l.kind === 'bed') this.game.bark('bed', 'Aquí abajo hay más polvo que donde la abuela.', 1.3); else this.game.bark('locker', 'Quietico. Quietico. Como cuando llegaba tarde a la casa.', 0.9);
     this.game.ui.tutorialHint = true;
     this.game.story.tut('locker-in');
   }

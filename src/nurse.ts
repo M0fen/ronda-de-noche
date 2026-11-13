@@ -805,7 +805,7 @@ export class Nurse {
         if (inside) { this.to('grab'); this.layer.bend.want = 1; this.game.onGrab(); return; }
         this.insp = 'turn'; this.inspT = 0;
       } else if (this.insp === 'peek' && this.inspT > 3.6 + this.game.director.phase * 0.8) {
-        if (inside) { this.lockerHides++; T.ev('safe', l.id); }
+        if (inside) { this.lockerHides++; T.ev('safe', l.id); this.game.bark('safe', 'Uf. Casi me hago en los calzones.', 1.6); }
         this.insp = 'turn'; this.inspT = 0;
       }
     } else if (this.insp === 'turn') {
@@ -849,7 +849,7 @@ export class Nurse {
         if (P.breath.gasped || this.notHeld > (this.tutorial ? 1.5 : 0.85)) { this.insp = 'open'; this.inspT = 0; this.once('open_locker'); return; }
       }
       if (this.inspT > dur) {
-        if (inside) { this.lockerHides++; T.ev('safe', l.id); }
+        if (inside) { this.lockerHides++; T.ev('safe', l.id); this.game.bark('safe', 'Uf. Casi me hago en los calzones.', 1.6); }
         this.insp = 'turn'; this.inspT = 0;
       }
     } else if (this.insp === 'open') {

@@ -60,7 +60,7 @@ export class Story {
       id: b.id, pos: b.pos.clone().setY(0.12), range: 1.7, key: 'interact',
       label: () => (P().bottles >= 3 ? 'Manos llenas' : 'Recoger botella'),
       enabled: () => !b.picked,
-      use: () => { if (P().bottles >= 3) return; b.picked = true; b.mesh.visible = false; P().bottles++; G.audio.pickup(); this.tut('bottle'); },
+      use: () => { if (P().bottles >= 3) return; b.picked = true; b.mesh.visible = false; P().bottles++; G.audio.pickup(); this.tut('bottle'); G.bark('bottle', 'Una botella vacía. Si fuera de guaro, igual ya estaría vacía.', 0.3); },
     });
     for (const n of props.notes) this.items.push({
       id: n.def.id, pos: n.pos, range: 1.9, label: () => (n.read ? 'Leer otra vez' : 'Leer'), enabled: () => true,
@@ -182,6 +182,8 @@ export class Story {
   tut(ev: string) {
     const map: Record<string, string> = { 'torch-on': 'torch', beam: 'beam', crank: 'crank', 'crouch-done': 'crouch', throw: 'throw', 'locker-in': 'locker', breath: 'breath' };
     if (ev === 'bottle') { if (!this.tutDone.has('throw')) this.after(0.4, () => this.queue('throw')); return; }
+    if (ev === 'crank') this.game.bark('crank', 'Esto suena más que la licuadora de mi mamá. Y ella lo oye todo.', 0.6);
+    if (ev === 'throw') this.game.bark('throw', 'Pa\' allá, mi reina. Pa\' allá.', 0.4);
     if (ev === 'torch-on' && !this.tutDone.has('move')) this.after(1.2, () => { if (!this.tutDone.has('move')) this.queue('move'); });
     const id = map[ev];
     if (id === 'breath') { this.flags.breathTried = true; return; }
@@ -246,7 +248,7 @@ export class Story {
     N.humWant = true;
     N.runScript([
       { to: { x: 32, z: 9.4 }, speed: 1.6, call: () => { N.humWant = true; } },
-      { wait: 2.1, look: true, glint: 0.9, call: () => { N.humWant = false; G.audio.stinger(true); G.input.rumble(0.3, 0.6, 400); G.player.shake = 0.25; } },
+      { wait: 2.1, look: true, glint: 0.9, call: () => { N.humWant = false; G.audio.stinger(true); G.input.rumble(0.3, 0.6, 400); G.player.shake = 0.25; G.player.focusOn(N.rig.head.getWorldPosition(new THREE.Vector3()), 1.9, 0.75); G.bark('sight', '¿Y esa señora qué? No, no, no, no.', 1.1); } },
       { to: { x: 51, z: 7.2 }, speed: 1.35, call: () => { N.humWant = true; } },
       { to: { x: 51, z: 14 }, speed: 1.2 },
     ], () => { G.director.hintT = 40; });

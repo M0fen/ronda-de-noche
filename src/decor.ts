@@ -754,9 +754,10 @@ export function nursesPhoto(extra: boolean) {
   const bg = g.createLinearGradient(0, py, 0, py + ph); bg.addColorStop(0, '#8a877c'); bg.addColorStop(1, '#55534b');
   g.fillStyle = bg; g.fillRect(px, py, pw, ph);
   g.fillStyle = '#6b6a60'; g.fillRect(px, py + ph * 0.62, pw, ph * 0.38);
-  const nurse = (x: number, y: number, s: number, scratch = false, ghost = false) => {
+  const nurse = (x: number, y: number, s: number, scratch = false, ghost = false, tilt = 0) => {
     g.save(); g.globalAlpha = ghost ? 0.78 : 1;
     g.fillStyle = ghost ? '#cfccc2' : '#efece4'; g.beginPath(); g.moveTo(x - 12 * s, y + 40 * s); g.lineTo(x - 9 * s, y + 8 * s); g.lineTo(x + 9 * s, y + 8 * s); g.lineTo(x + 12 * s, y + 40 * s); g.fill();
+    if (tilt) { g.translate(x, y + 7 * s); g.rotate(tilt); g.translate(-x, -(y + 7 * s)); } // the head lies over on its shoulder
     g.fillStyle = '#2a2622'; g.beginPath(); g.arc(x, y, 7.2 * s, 0, 7); g.fill();
     g.fillStyle = ghost ? '#b9b4a8' : '#d8c8b0'; g.beginPath(); g.ellipse(x, y + 1 * s, 5.4 * s, 6.4 * s, 0, 0, 7); g.fill();
     g.fillStyle = '#f6f4ee'; g.fillRect(x - 6.5 * s, y - 8.5 * s, 13 * s, 4.2 * s);
@@ -769,8 +770,8 @@ export function nursesPhoto(extra: boolean) {
   rows.forEach((r, ri) => { for (let i = 0; i < r.n; i++) nurse(px + pw * (i + 1) / (r.n + 1) + (R() - 0.5) * 3, r.y, r.s, ri === 2 && i === 0); });
   if (extra) {
     // between the 2nd and 3rd sister in the back row, half a head taller, a little out of focus
-    const x = px + pw * 2.5 / 6, y = py + 13;
-    g.filter = 'blur(0.7px)'; nurse(x, y, 1.08, false, true); g.filter = 'none';
+    const x = px + pw * 2.5 / 6, y = py + 9;
+    g.filter = 'blur(0.7px)'; nurse(x, y, 1.18, false, true, 1.35); g.filter = 'none';
   }
   sepia(g, W, H, 74);
   g.fillStyle = 'rgba(255,250,235,0.06)'; for (let i = 0; i < 30; i++) g.fillRect(R() * W, R() * H, 1, 6 + R() * 30);
@@ -779,7 +780,7 @@ export function nursesPhoto(extra: boolean) {
   frameAround(g, W, H, 12, [36, 30, 24]);
   return toCanvasTex(c);
 }
-export function founder() {
+export function founder(bare = false) {
   const W = 220, H = 280, [c, g] = canvas(W, H), R = rng(1951);
   const bg = g.createRadialGradient(W / 2, H * 0.4, 10, W / 2, H * 0.45, H * 0.6); bg.addColorStop(0, '#5d4a30'); bg.addColorStop(1, '#1f170e');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
@@ -792,12 +793,23 @@ export function founder() {
   g.fillStyle = '#9a7656'; g.beginPath(); g.ellipse(W / 2 + 14, 124, 18, 40, 0.1, 0, 7); g.fill();
   g.fillStyle = '#d8d2c6'; g.beginPath(); g.ellipse(W / 2, 74, 36, 16, 0, Math.PI, 0); g.fill();
   g.fillStyle = '#c8c0b2'; g.fillRect(W / 2 - 39, 84, 8, 30); g.fillRect(W / 2 + 31, 84, 8, 30);
-  g.strokeStyle = '#4a3420'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 14, 150); g.quadraticCurveTo(W / 2, 156, W / 2 + 14, 150); g.stroke();
+  if (!bare) { g.strokeStyle = '#4a3420'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2 - 14, 150); g.quadraticCurveTo(W / 2, 156, W / 2 + 14, 150); g.stroke(); }
+  else { // a grin far too wide for the face, every tooth painted
+    g.fillStyle = '#1a0d08'; g.beginPath(); g.moveTo(W / 2 - 33, 142); g.quadraticCurveTo(W / 2, 176, W / 2 + 33, 142); g.quadraticCurveTo(W / 2, 156, W / 2 - 33, 142); g.fill();
+    g.fillStyle = '#d9cfb4'; for (let i = 0; i < 13; i++) { const tx = W / 2 - 28 + i * 4.6, ty = 146 + Math.sin((i / 12) * Math.PI) * 9; g.fillRect(tx, ty, 3.4, 4.2); }
+  }
   g.fillStyle = '#7a5a40'; g.beginPath(); g.moveTo(W / 2, 112); g.lineTo(W / 2 - 6, 136); g.lineTo(W / 2 + 6, 136); g.fill();
-  // medical tape over the eyes, in a cross on each
-  for (const sx of [-1, 1]) for (const r of [-0.35, 0.35]) {
+  // medical tape over the eyes, in a cross on each (bare: it has come away, and there is nothing under it)
+  if (!bare) for (const sx of [-1, 1]) for (const r of [-0.35, 0.35]) {
     g.save(); g.translate(W / 2 + sx * 15, 108); g.rotate(r); g.fillStyle = 'rgba(236,232,220,0.96)'; g.fillRect(-15, -4.5, 30, 9);
     g.fillStyle = 'rgba(180,170,150,0.6)'; for (let i = 0; i < 6; i++) g.fillRect(-15 + i * 5, -4.5, 0.6, 9); g.restore();
+  }
+  else {
+    for (const sx of [-1, 1]) {
+      g.fillStyle = '#070403'; g.beginPath(); g.ellipse(W / 2 + sx * 15, 108, 9, 7, 0, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(12,6,4,0.85)'; g.lineWidth = 1.6; for (let k = 0; k < 3; k++) { const dx = W / 2 + sx * 15 + (k - 1) * 4; g.beginPath(); g.moveTo(dx, 112); g.lineTo(dx + (R() - 0.5) * 2, 124 + R() * 26); g.stroke(); }
+    }
+    g.save(); g.translate(W / 2 + 26, 120); g.rotate(1.2); g.fillStyle = 'rgba(236,232,220,0.95)'; g.fillRect(-14, -4, 28, 8); g.restore(); // one strip left, hanging
   }
   for (let i = 0; i < 800; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,240,200' : '0,0,0'},${R() * 0.06})`; g.fillRect(R() * W, R() * H, 2, 1); }
   for (let i = 0; i < 40; i++) { g.strokeStyle = 'rgba(20,14,8,0.25)'; g.lineWidth = 0.5; const x = R() * W, y = R() * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - 0.5) * 20, y + (R() - 0.5) * 20); g.stroke(); } // craquelure
@@ -805,28 +817,112 @@ export function founder() {
   brass(g, W, H - 30, 'DR. AURELIO SARMIENTO · FUNDADOR · 1951', 6);
   return toCanvasTex(c);
 }
-// a sabana landscape from the gift shop; in the variant somebody is home
-export function landscape(lit: boolean) {
-  const W = 280, H = 200, [c, g] = canvas(W, H), R = rng(77);
-  const sky = g.createLinearGradient(0, 0, 0, H * 0.6); sky.addColorStop(0, '#5f7c8c'); sky.addColorStop(1, '#b8b49a');
+// coffee country from the gift shop: wax palms, a finca with red balconies, a Willys loaded with sacks. In the
+// variant it is dusk, the moon has an eye, and every row of coffee has a picker in it, faceless, turned to you.
+export function landscape(dusk: boolean) {
+  const W = 300, H = 210, [c, g] = canvas(W, H), R = rng(77);
+  const sky = g.createLinearGradient(0, 0, 0, H * 0.62);
+  if (dusk) { sky.addColorStop(0, '#2a0e18'); sky.addColorStop(0.6, '#7a2418'); sky.addColorStop(1, '#c0642c'); }
+  else { sky.addColorStop(0, '#6f97b0'); sky.addColorStop(1, '#d9d3b4'); }
   g.fillStyle = sky; g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 9; i++) { g.fillStyle = `rgba(235,232,220,${0.25 + R() * 0.3})`; g.beginPath(); g.ellipse(R() * W, 20 + R() * 50, 20 + R() * 40, 6 + R() * 10, 0, 0, 7); g.fill(); }
-  g.fillStyle = '#5b7244'; g.beginPath(); g.moveTo(0, 120); g.quadraticCurveTo(80, 88, 160, 112); g.quadraticCurveTo(220, 126, W, 100); g.lineTo(W, H); g.lineTo(0, H); g.fill();
-  g.fillStyle = '#3f5530'; g.beginPath(); g.moveTo(0, 150); g.quadraticCurveTo(120, 128, W, 154); g.lineTo(W, H); g.lineTo(0, H); g.fill();
-  for (let i = 0; i < 6; i++) { const x = 20 + i * 18 + R() * 8; g.fillStyle = '#2d3a26'; g.fillRect(x, 70, 3, 50); g.beginPath(); g.ellipse(x + 1, 66, 8, 24, 0, 0, 7); g.fill(); } // eucalyptus
-  // the little house
-  const hx = 182, hy = 108;
-  g.fillStyle = '#e6e0cf'; g.fillRect(hx, hy, 40, 26);
-  g.fillStyle = '#9a3a24'; g.beginPath(); g.moveTo(hx - 5, hy); g.lineTo(hx + 20, hy - 15); g.lineTo(hx + 45, hy); g.fill();
-  g.fillStyle = '#4a3020'; g.fillRect(hx + 6, hy + 10, 7, 16);
-  g.fillStyle = lit ? '#f4c25a' : '#1c1a16'; g.fillRect(hx + 24, hy + 8, 10, 9);
-  if (lit) {
-    const gl = g.createRadialGradient(hx + 29, hy + 12, 1, hx + 29, hy + 12, 16); gl.addColorStop(0, 'rgba(255,200,90,0.5)'); gl.addColorStop(1, 'rgba(255,200,90,0)'); g.fillStyle = gl; g.fillRect(hx + 10, hy - 4, 40, 34);
-    g.fillStyle = '#16120c'; g.beginPath(); g.arc(hx + 29, hy + 11.5, 2.2, 0, 7); g.fill(); g.fillRect(hx + 26.5, hy + 13, 5, 4); // somebody looking out
-    g.fillStyle = '#f2efe6'; g.fillRect(hx + 26.6, hy + 8.6, 4.8, 1.3);
+  if (dusk) { // the moon, looking
+    g.fillStyle = '#efe6cc'; g.beginPath(); g.arc(232, 44, 17, 0, 7); g.fill();
+    g.fillStyle = '#7a1e14'; g.beginPath(); g.ellipse(232, 44, 9, 7, 0, 0, 7); g.fill();
+    g.fillStyle = '#0b0606'; g.beginPath(); g.arc(229, 45, 3.6, 0, 7); g.fill();
+  } else for (let i = 0; i < 7; i++) { g.fillStyle = `rgba(245,242,230,${0.3 + R() * 0.3})`; g.beginPath(); g.ellipse(R() * W, 18 + R() * 40, 18 + R() * 36, 5 + R() * 8, 0, 0, 7); g.fill(); }
+  // the cordillera, ridge behind ridge
+  const ridge = (y: number, amp: number, col: string, seed: number) => { const r = rng(seed); g.fillStyle = col; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 10) g.lineTo(x, y - Math.sin(x * 0.021 + seed) * amp - r() * 6); g.lineTo(W, H); g.fill(); };
+  ridge(98, 18, dusk ? '#3a1a22' : '#7f9a86', 3); ridge(118, 14, dusk ? '#2a1418' : '#557a4c', 5); ridge(146, 10, dusk ? '#1c0f10' : '#3e6236', 8);
+  // coffee in contour rows down the near slope
+  for (let row = 0; row < 7; row++) for (let x = 6; x < W; x += 7) {
+    const y = 152 + row * 8 + Math.sin(x * 0.03 + row) * 3;
+    g.fillStyle = dusk ? '#140a0a' : (R() < 0.5 ? '#264a22' : '#2e5628'); g.beginPath(); g.arc(x + (row % 2) * 3.5, y, 3.2, 0, 7); g.fill();
+  }
+  // wax palms: thin, too tall
+  for (const [x, h] of [[30, 92], [52, 78], [262, 98], [281, 84]] as [number, number][]) {
+    g.fillStyle = dusk ? '#0c0606' : '#cfc8b4'; g.fillRect(x, 150 - h, 2, h);
+    g.fillStyle = dusk ? '#0c0606' : '#3f5a34'; for (let k = 0; k < 6; k++) { g.save(); g.translate(x + 1, 150 - h); g.rotate(-1.4 + k * 0.56); g.fillRect(0, -1, 13, 2); g.restore(); }
+  }
+  // the finca: whitewash, red balconies, red doors
+  const fx = 172, fy = 112;
+  g.fillStyle = dusk ? '#6a5a50' : '#eee8d8'; g.fillRect(fx, fy, 48, 26);
+  g.fillStyle = dusk ? '#4a1810' : '#9c2a1c'; g.beginPath(); g.moveTo(fx - 6, fy); g.lineTo(fx + 24, fy - 13); g.lineTo(fx + 54, fy); g.fill();
+  g.fillRect(fx + 2, fy + 10, 44, 2); for (let i = 0; i < 9; i++) g.fillRect(fx + 3 + i * 5, fy + 10, 1, 6); // balcony rail
+  g.fillStyle = dusk ? '#3a120c' : '#a02a1a'; g.fillRect(fx + 6, fy + 16, 6, 10); g.fillRect(fx + 36, fy + 16, 6, 10);
+  g.fillStyle = dusk ? '#f2c25a' : '#2a2018'; g.fillRect(fx + 20, fy + 3, 8, 6);
+  if (dusk) { g.fillStyle = '#120c08'; g.beginPath(); g.arc(fx + 24, fy + 6, 1.8, 0, 7); g.fill(); g.fillStyle = '#efe9da'; g.fillRect(fx + 22, fy + 3.4, 4, 1.1); } // her cap in the window
+  // the Willys on the track, loaded with sacks
+  const jx = 96, jy = 168;
+  g.fillStyle = dusk ? '#141018' : '#3a5a8a'; g.fillRect(jx, jy, 24, 8); g.fillRect(jx + 4, jy - 6, 12, 6);
+  g.fillStyle = dusk ? '#2a2020' : '#c9b48a'; for (let i = 0; i < 4; i++) { g.beginPath(); g.ellipse(jx + 5 + i * 5, jy - 9, 3.4, 3, 0, 0, 7); g.fill(); }
+  g.fillStyle = '#111'; g.beginPath(); g.arc(jx + 5, jy + 8, 3, 0, 7); g.arc(jx + 19, jy + 8, 3, 0, 7); g.fill();
+  if (dusk) { // the pickers: one in every row, all turned this way, no faces
+    for (let i = 0; i < 16; i++) {
+      const row = i % 7, x = 14 + ((i * 53) % (W - 28)), y = 148 + row * 8 + Math.sin(x * 0.03 + row) * 3;
+      g.fillStyle = '#d8d0bc'; g.fillRect(x - 2, y - 8, 4, 8);
+      g.beginPath(); g.arc(x, y - 10.5, 2.4, 0, 7); g.fill();
+      g.fillStyle = '#e8e0cc'; g.fillRect(x - 3.4, y - 13.2, 6.8, 1.4); // the hat brim
+    }
   }
   for (let i = 0; i < 1500; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,250,230' : '20,20,10'},${R() * 0.08})`; g.fillRect(R() * W, R() * H, 2, 2); }
   frameAround(g, W, H, 12, [92, 66, 40]);
+  brass(g, W, H - 18, 'PAISAJE CAFETERO', 6);
+  return toCanvasTex(c);
+}
+// a still life in the day room: lulos, guavas, a granadilla, bananas. One guava has an eye where the seeds go;
+// in the variant every fruit has one, and they all look at you.
+export function bodegon(eyes: boolean) {
+  const W = 260, H = 200, [c, g] = canvas(W, H), R = rng(2026);
+  const bg = g.createRadialGradient(W * 0.45, H * 0.45, 10, W / 2, H / 2, W * 0.7); bg.addColorStop(0, '#3a2a1c'); bg.addColorStop(1, '#0c0806');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#5a3a22'; g.fillRect(0, 138, W, H - 138); g.fillStyle = 'rgba(255,220,170,0.08)'; g.fillRect(0, 138, W, 2);
+  g.fillStyle = '#d8d0bc'; g.beginPath(); g.moveTo(40, 140); g.lineTo(220, 140); g.lineTo(236, 186); g.lineTo(26, 186); g.fill(); // the cloth
+  g.fillStyle = 'rgba(120,40,30,0.35)'; g.beginPath(); g.ellipse(180, 170, 14, 6, 0.2, 0, 7); g.fill();
+  g.fillStyle = '#b8a888'; g.beginPath(); g.ellipse(126, 136, 64, 14, 0, 0, Math.PI); g.fill(); // the bowl
+  const eye = (x: number, y: number, r: number) => {
+    g.fillStyle = '#efe9dc'; g.beginPath(); g.ellipse(x, y, r, r * 0.66, 0, 0, 7); g.fill();
+    g.fillStyle = '#3a2a1a'; g.beginPath(); g.arc(x - r * 0.12, y, r * 0.42, 0, 7); g.fill();
+    g.fillStyle = '#050403'; g.beginPath(); g.arc(x - r * 0.12, y, r * 0.2, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.8)'; g.fillRect(x - r * 0.3, y - r * 0.25, 1.4, 1.4);
+  };
+  const fruit = (x: number, y: number, r: number, c1: string, c2: string, speck = '') => {
+    const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r); gr.addColorStop(0, c1); gr.addColorStop(1, c2);
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    if (speck) { g.fillStyle = speck; for (let i = 0; i < 14; i++) { const a = R() * 7, d = R() * r * 0.8; g.fillRect(x + Math.cos(a) * d, y + Math.sin(a) * d, 1, 1); } }
+  };
+  // bananas behind, then lulos, the granadilla, the guavas (one cut open)
+  g.strokeStyle = '#c9a63a'; g.lineCap = 'round'; for (let i = 0; i < 4; i++) { g.lineWidth = 9; g.beginPath(); g.arc(150 + i * 6, 70, 52, 1.9, 2.7); g.stroke(); }
+  fruit(86, 112, 17, '#f3a33c', '#a8501a', 'rgba(90,40,10,0.6)'); fruit(112, 120, 15, '#f0a03a', '#9c4a18', 'rgba(90,40,10,0.6)');
+  fruit(148, 110, 18, '#f2d06a', '#a8742a', 'rgba(255,250,220,0.8)');
+  fruit(176, 122, 15, '#d8d48a', '#7a8a3a'); fruit(64, 128, 13, '#cfd07e', '#6f7e32');
+  g.fillStyle = '#e8907a'; g.beginPath(); g.arc(196, 132, 13, 0, 7); g.fill(); g.strokeStyle = '#8a9a42'; g.lineWidth = 2.4; g.beginPath(); g.arc(196, 132, 13, 0, 7); g.stroke(); // the cut guava
+  if (!eyes) eye(196, 132, 8);
+  else {
+    eye(196, 132, 8.5); eye(86, 112, 7); eye(112, 121, 6); eye(148, 110, 7.5); eye(176, 122, 6); eye(64, 128, 5.4); eye(158, 64, 5); eye(171, 72, 4.4);
+    g.fillStyle = '#0a0806'; for (let i = 0; i < 3; i++) { const fx = 100 + R() * 80, fy = 90 + R() * 40; g.beginPath(); g.ellipse(fx, fy, 2.2, 1.4, R() * 3, 0, 7); g.fill(); } // flies
+  }
+  for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,240,200' : '0,0,0'},${R() * 0.06})`; g.fillRect(R() * W, R() * H, 2, 1); }
+  g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgb(176,150,110)'; g.fillRect(0, 0, W, H); g.globalCompositeOperation = 'source-over'; // old yellowed varnish
+  frameAround(g, W, H, 14, [140, 104, 48], true);
+  return toCanvasTex(c);
+}
+// what was on the other side of the turned frame: a sister in a starched cap, and where her face should be,
+// nothing; a single row of stitches where a mouth would go
+export function nursePortrait() {
+  const W = 160, H = 210, [c, g] = canvas(W, H), R = rng(13);
+  const bg = g.createRadialGradient(W / 2, H * 0.42, 8, W / 2, H / 2, H * 0.6); bg.addColorStop(0, '#4a4030'); bg.addColorStop(1, '#100c08');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#e6e0d0'; g.beginPath(); g.moveTo(22, H); g.quadraticCurveTo(W / 2, 112, W - 22, H); g.fill(); // uniform
+  g.fillStyle = '#1c1612'; g.beginPath(); g.ellipse(W / 2, 92, 30, 38, 0, 0, 7); g.fill(); // hair
+  g.fillStyle = '#cdb69a'; g.beginPath(); g.ellipse(W / 2, 98, 23, 31, 0, 0, 7); g.fill(); // the face, blank
+  g.fillStyle = 'rgba(120,90,70,0.25)'; g.beginPath(); g.ellipse(W / 2 + 8, 104, 10, 24, 0.1, 0, 7); g.fill();
+  g.strokeStyle = '#3a1a14'; g.lineWidth = 1; g.beginPath(); g.moveTo(W / 2 - 9, 114); g.lineTo(W / 2 + 9, 114); g.stroke();
+  for (let i = 0; i < 7; i++) { g.beginPath(); g.moveTo(W / 2 - 8 + i * 2.6, 111.5); g.lineTo(W / 2 - 8 + i * 2.6, 116.5); g.stroke(); } // stitched shut
+  g.fillStyle = '#f2eee4'; g.beginPath(); g.moveTo(W / 2 - 30, 70); g.lineTo(W / 2 + 30, 70); g.lineTo(W / 2 + 22, 54); g.lineTo(W / 2 - 22, 54); g.fill(); // the cap
+  g.fillStyle = '#9c1c1c'; g.fillRect(W / 2 - 1.5, 57, 3, 10); g.fillRect(W / 2 - 5, 60.5, 10, 3);
+  for (let i = 0; i < 600; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,240,200' : '0,0,0'},${R() * 0.07})`; g.fillRect(R() * W, R() * H, 2, 1); }
+  for (let i = 0; i < 30; i++) { g.strokeStyle = 'rgba(20,14,8,0.25)'; g.lineWidth = 0.5; const x = R() * W, y = R() * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - 0.5) * 16, y + (R() - 0.5) * 16); g.stroke(); }
+  frameAround(g, W, H, 12, [90, 66, 40]);
   return toCanvasTex(c);
 }
 // the back of a frame, turned to face the wall

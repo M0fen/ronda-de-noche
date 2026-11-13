@@ -114,7 +114,7 @@ export class AudioSys {
   // copies (doubled, not quite human) and a mild occlusion low-pass, all panned from where she stands.
   // Ghost: an airy high-passed copy right inside your head with a long hall, and a reversed reverb that
   // swells INTO each line. Music and ambience duck while she talks.
-  private vIn!: GainNode; private vLP!: BiquadFilterNode; private preIn!: GainNode;
+  private vIn!: GainNode; private vLP!: BiquadFilterNode; private preIn!: GainNode; private vxBus!: GainNode;
   private pre = new Map<string, AudioBuffer>();
   private readonly PRE = 0.9;   // reversed-reverb length (s)
   private readonly LEAD = 0.5;  // how much of the swell plays before the first word (s)
@@ -136,7 +136,7 @@ export class AudioSys {
     this.vLP = f('lowpass', 12000, 0, 0.5);
     mix.connect(this.vLP).connect(this.nursePan);
     // the ghost in your head
-    const ghost = ctx.createGain(); ghost.gain.value = 0.18;
+    const ghost = ctx.createGain(); ghost.gain.value = 0.24;
     const air = f('highpass', 1300, 0, 0.6);
     makeup.connect(ghost).connect(air).connect(this.voice);
     const hall = ctx.createConvolver(), sr = ctx.sampleRate, len = Math.floor(sr * 4.2), ir = ctx.createBuffer(2, len, sr);
@@ -144,6 +144,9 @@ export class AudioSys {
     hall.buffer = ir;
     const hallG = ctx.createGain(); hallG.gain.value = 0.7;
     air.connect(hall).connect(hallG).connect(this.voice);
+    // the baked spectral layer (src/sfx/vx_*.mp3: whispered doubles, an octave under, the last syllable echoing
+    // away): played inside your head while the dry line comes from where she stands
+    this.vxBus = ctx.createGain(); this.vxBus.gain.value = 0.85; this.vxBus.connect(this.voice);
     this.preIn = ctx.createGain(); this.preIn.gain.value = 0.55;
     this.preIn.connect(f('highpass', 380, 0, 0.6)).connect(this.voice);
   }
@@ -170,6 +173,7 @@ export class AudioSys {
     const t0 = t + 0.05 + (pre ? this.LEAD : 0);
     if (pre) { const s = ctx.createBufferSource(); s.buffer = pre; s.playbackRate.value = rate; s.connect(this.preIn); s.start(t + 0.05, Math.max(0, this.PRE - this.LEAD * rate)); }
     this.sample(name, this.vIn, t0, gain, rate, 0);
+    this.sample('vx_' + name.slice(2), this.vxBus, t0, gain * 0.62, rate, 0);
     const end = t0 + b.duration / rate;
     for (const g of [this.humGain.gain, this.humRec?.g.gain]) {
       if (!g) continue;
@@ -373,6 +377,18 @@ export class AudioSys {
       o.detune.value = (Math.random() - 0.5) * 20;
     }
     this.burst(this.music, t, big ? 1.4 : 0.6, 'bandpass', 600, 0.5, big ? 0.35 : 0.2, 0.02);
+  }
+  // the grab: everything at once, and loud. A blast of noise, a screech tearing downward, a sub-bass hit, a
+  // dissonant cluster, the recorded impact on top
+  shock() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, b = this.uiBus;
+    this.sample('impact', b, t, 1.4, 0.82, 0);
+    this.burst(b, t, 0.55, 'highpass', 700, 0.5, 0.75, 0.001);
+    this.burst(b, t, 0.3, 'bandpass', 2400, 0.8, 0.5, 0.001);
+    const sc = this.tone(b, t, 'sawtooth', 1350, 160, 0.85, 0.22, 0.002); sc.detune.value = 25;
+    this.tone(b, t, 'sine', 58, 26, 1.3, 1.0, 0.002);
+    for (const f of [311.1, 329.6, 349.2, 370]) { const o = this.tone(b, t, 'sawtooth', f, f * 0.9, 1.1, 0.07, 0.003); o.detune.value = (Math.random() - 0.5) * 40; }
   }
   // her scream when she gets you: recorded only, on top of the stinger
   scream() { if (this.ctx) this.sample('scream', this.voice, this.ctx.currentTime, 0.9, 1, 0.04); }

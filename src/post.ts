@@ -8,7 +8,7 @@ precision highp float;
 uniform sampler2D tScene;
 uniform sampler2D tBloom; uniform float uBloom;
 uniform vec2 uRes; uniform vec2 uOut;
-uniform float uTime, uExposure, uGrain, uAberr, uWarp, uFear, uPulse, uBreath, uLocker, uSheet, uFade, uHalluc, uDesat, uLevels, uFlash;
+uniform float uTime, uExposure, uGrain, uAberr, uWarp, uFear, uPulse, uBreath, uLocker, uSheet, uFade, uHalluc, uDesat, uLevels, uFlash, uFocus, uShock;
 uniform sampler2D tDepth; uniform float uNear, uFar, uHaze, uTorchCos, uTorchCosIn, uTorchRange; uniform int uSteps;
 uniform vec2 uTan; uniform vec3 uTorchPos, uTorchDir; uniform mat4 uCamWorld;
 varying vec2 vUv;
@@ -43,16 +43,26 @@ void main(){
   p /= 1.0 + uWarp;
   if (uHalluc > 0.0) p += vec2(sin(uTime*1.7 + p.y*6.0), cos(uTime*1.3 + p.x*5.0)) * 0.006 * uHalluc;
   vec2 uv = p * 0.5 + 0.5;
+  // the grab: the picture tears in bands
+  if (uShock > 0.0) { float row = floor(vUv.y * 38.0), fr = floor(uTime * 40.0); uv.x += (hash(vec2(row, fr)) - 0.5) * 0.07 * uShock * step(0.5, hash(vec2(row * 1.7, fr + 3.0))); }
   vec2 dir = uv - 0.5;
-  float ca = uAberr * (0.7 + uFear * 1.6) * (1.0 - uLocker * 0.7);
+  float ca = uAberr * (0.7 + uFear * 1.6) * (1.0 - uLocker * 0.7) * (1.0 + uShock * 8.0);
   vec3 col;
   col.r = texture2D(tScene, uv + dir * ca).r;
   col.g = texture2D(tScene, uv).g;
   col.b = texture2D(tScene, uv - dir * ca).b;
+  // looking closely: the edges go soft so the eye lands on the thing
+  if (uFocus > 0.0) {
+    float rr = smoothstep(0.08, 0.62, length((uv - 0.5) * vec2(uOut.x / uOut.y, 1.0))) * uFocus;
+    vec2 o = dir * 0.03 * rr, o2 = vec2(-o.y, o.x) * 0.8;
+    vec3 b = texture2D(tScene, uv + o).rgb + texture2D(tScene, uv - o).rgb + texture2D(tScene, uv + o2).rgb + texture2D(tScene, uv - o2).rgb;
+    col = mix(col, b * 0.25, clamp(rr * 1.2, 0.0, 1.0));
+  }
   col += texture2D(tBloom, uv).rgb * uBloom;
   if (uHaze > 0.0 && uSteps > 0) col += beamHaze(uv, ign(floor(gl_FragCoord.xy) + 5.588238 * frame24));
   col *= step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
-  col *= uExposure * (1.0 + uFlash * 0.5);
+  col *= uExposure * (1.0 + uFlash * 0.5) * (1.0 + uShock * 0.9);
+  col = mix(col, col * vec3(1.9, 0.38, 0.32) + vec3(0.05, 0.0, 0.0), uShock * 0.7);
   col += vec3(0.05, 0.06, 0.08) * uFlash; // a lightning flash lifts the whole frame a little, cold
   col = aces(col);
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
@@ -62,7 +72,7 @@ void main(){
   // vignette, tightened by fear (pulsing) and by holding breath
   vec2 q = (vUv - 0.5) * vec2(uOut.x / uOut.y, 1.0);
   float d = length(q);
-  float inner = 0.46 - uBreath * 0.24 - uFear * 0.08 * (0.6 + 0.4 * uPulse);
+  float inner = 0.46 - uBreath * 0.24 - uFear * 0.08 * (0.6 + 0.4 * uPulse) - uFocus * 0.12;
   float vig = 1.0 - smoothstep(inner, inner + 0.6 - uBreath * 0.2, d);
   col *= mix(0.2 - uBreath * 0.12, 1.0, vig);
   if (uLocker > 0.0) {
@@ -85,6 +95,7 @@ void main(){
   float g = hash(gp) + hash(gp + 71.3) - 1.0;
   float v = dot(col, vec3(0.2126, 0.7152, 0.0722));
   col += g * uGrain * (0.3 + 0.7 * smoothstep(0.0, 0.15, v) * (1.0 - 0.6 * smoothstep(0.55, 1.0, v)));
+  if (uShock > 0.93) col = vec3(1.0) - col; // the first frames of the grab, negative
   col *= 1.0 - uFade;
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -127,7 +138,7 @@ export class Post {
       tScene: { value: this.rt.texture }, uRes: { value: new THREE.Vector2(4, 4) }, uOut: { value: new THREE.Vector2(4, 4) },
       uTime: { value: 0 }, uExposure: { value: 1 }, uGrain: { value: 0.02 }, uAberr: { value: 0.006 }, uWarp: { value: 0.06 },
       uFear: { value: 0 }, uPulse: { value: 0 }, uBreath: { value: 0 }, uLocker: { value: 0 }, uSheet: { value: 0 }, uFade: { value: 1 },
-      uHalluc: { value: 0 }, uDesat: { value: 0.12 }, uLevels: { value: 36 }, uFlash: { value: 0 },
+      uHalluc: { value: 0 }, uDesat: { value: 0.12 }, uLevels: { value: 36 }, uFlash: { value: 0 }, uFocus: { value: 0 }, uShock: { value: 0 },
       tBloom: { value: null }, uBloom: { value: 0.65 },
       tDepth: { value: this.rt.depthTexture }, uNear: { value: 0.05 }, uFar: { value: 60 }, uTan: { value: new THREE.Vector2(1, 1) }, uCamWorld: { value: new THREE.Matrix4() },
       uHaze: { value: 0 }, uSteps: { value: 10 }, uTorchPos: { value: new THREE.Vector3() }, uTorchDir: { value: new THREE.Vector3(0, 0, -1) },
