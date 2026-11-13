@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Registro de rondas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Stardos+Stencil:wght@700&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+  :root { --bg: #070807; --panel: #0e100e; --line: #22261f; --bone: #e6dfcf; --ash: #8f8a7d; --alarm: #c4291f; --nicotine: #c9b06a; --teal: #6fa39a;
+    --display: 'Stardos Stencil', Impact, sans-serif; --type: 'Courier Prime', 'Courier New', monospace; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--bone); font: 14px/1.45 var(--type); }
+  main { max-width: 1180px; margin: 0 auto; padding: 22px 16px 60px; }
+  h1 { font: 700 clamp(30px, 5vw, 48px)/1 var(--display); text-transform: uppercase; margin: 0 0 4px; letter-spacing: 0.01em; }
+  .sub { color: var(--ash); margin: 0 0 20px; font-size: 13px; }
+  .sub .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--alarm); margin-right: 6px; vertical-align: 1px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .tile { background: var(--panel); border-left: 2px solid var(--alarm); padding: 10px 14px 12px; }
+  .tile b { display: block; font: 700 28px/1.1 var(--type); font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ash); }
+  .wrap { overflow-x: auto; border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; min-width: 760px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ash); font-weight: 700; background: var(--panel); position: sticky; top: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.sel { background: #161a15; }
+  tbody tr.sel td:first-child { box-shadow: inset 2px 0 var(--alarm); }
+  .obj { max-width: 340px; overflow: hidden; text-overflow: ellipsis; color: var(--ash); }
+  .end { color: var(--nicotine); font-weight: 700; }
+  .detail { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 16px; margin-top: 22px; }
+  @media (max-width: 860px) { .detail { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 14px; }
+  .card h2 { font: 700 13px/1 var(--type); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ash); margin: 0 0 12px; }
+  canvas { width: 100%; height: auto; display: block; background: #050605; image-rendering: pixelated; }
+  .controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .controls button { font: 700 12px/1 var(--type); color: var(--bg); background: var(--bone); border: 0; padding: 8px 12px; cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase; }
+  .controls input[type=range] { flex: 1; accent-color: var(--alarm); }
+  .controls output { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; color: var(--ash); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--ash); }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: 3px; margin-right: 6px; }
+  ol.events { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; }
+  ol.events li { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--line); cursor: pointer; }
+  ol.events li:hover { color: #fff; }
+  ol.events time { color: var(--ash); font-variant-numeric: tabular-nums; }
+  ol.events .bad { color: #e2584d; } ol.events .hide { color: var(--teal); } ol.events .good { color: var(--nicotine); }
+  .msg { padding: 40px 0; color: var(--ash); }
+  .who { font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Registro de rondas</h1>
+  <p class="sub"><span class="dot"></span>Ronda de noche · quién jugó, hasta dónde llegó, qué hizo y por dónde anduvo</p>
+  <div id="app"><p class="msg">Cargando…</p></div>
+</main>
+<script type="module" src="/src/registro.ts"></script>
+</body>
+</html>

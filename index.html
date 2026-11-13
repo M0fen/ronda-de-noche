@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Ronda de noche</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#050605">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Stardos+Stencil:wght@400;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Reenie+Beanie&display=swap">
+</head>
+<body>
+<div id="app">
+  <canvas id="view" aria-label="Vista del juego Ronda de noche"></canvas>
+
+  <div id="hud" hidden>
+    <div id="objective" class="clip"><span class="eyebrow"><i class="dot"></i>Objetivo</span><p id="objective-text"></p></div>
+    <div id="toast" hidden></div>
+    <div id="area-card" hidden><span id="area-name" class="grit"></span><span id="area-sub"></span></div>
+    <div id="crosshair"></div>
+    <div id="marker" hidden><i></i></div>
+    <div id="lockhint" hidden>Haz clic para mirar</div>
+    <div id="stamina" hidden><div class="meter"><i id="stamina-fill"></i></div></div>
+    <div id="interact" hidden><kbd id="interact-key">E</kbd><span id="interact-text"></span></div>
+    <div id="breath" hidden><span class="eyebrow">Aliento</span><div class="meter"><i id="breath-fill"></i></div></div>
+    <div id="subtitles" aria-live="polite"><p id="thought" hidden></p></div>
+    <div id="tutorial" hidden><kbd id="tut-key"></kbd><span id="tut-text"></span></div>
+    <div id="kit">
+      <div id="battery"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 10h8.5l5-3.5v11L11 14H2.5z"/><path d="M19 8.5l2.5-1.2M19.2 12h2.8M19 15.5l2.5 1.2"/></svg><div class="meter seg"><i id="battery-fill"></i></div><span id="battery-pct">100</span><span id="beam" data-level="1" title="Haz"><b></b><b></b><b></b></span></div>
+      <div class="kit-row"><span id="bottles" data-count="0"><b></b><b></b><b></b></span><span id="fuse-chip" hidden>Fusible · Pabellón</span></div>
+    </div>
+  </div>
+
+  <div id="touch" hidden>
+    <div class="stick-zone"><div class="stick-ghost"><i></i></div><div class="base" hidden><div class="knob"></div></div></div>
+    <div class="look-zone"></div>
+    <div class="tpad">
+      <button data-act="interact" class="tb big use" aria-label="Usar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 13V6.6a1.5 1.5 0 0 1 3 0V12M11 11.5V5a1.5 1.5 0 0 1 3 0v6.5M14 11.5V6.6a1.5 1.5 0 0 1 3 0V14c0 4-2.4 7-6 7-2.6 0-4-1.4-5.4-3.6L4 14.6a1.4 1.4 0 0 1 2.3-1.6L8 15"/></svg><span>Usar</span></button>
+      <button data-act="torch" class="tb" aria-label="Linterna"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 10h8.5l5-3.5v11L11 14H2.5z"/><path d="M19 8.5l2.5-1.2M19.2 12h2.8M19 15.5l2.5 1.2"/></svg><span>Luz</span></button>
+      <button data-act="crouch" class="tb not-locker" aria-label="Agacharse"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4.6" r="2"/><path d="M11.2 7.8l-2.2 5.2 5 1.2.8 5.8M9 13l-3.2 3.4M13.4 9.6l3.4 1.2"/></svg><span>Agachar</span></button>
+      <button data-act="sprint" data-mode="hold" class="tb not-locker" aria-label="Correr"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="14.6" cy="4.4" r="2"/><path d="M7.5 21l3.2-5.6 3 2.6.8 3.8M10.7 15.4l1.3-6.2 3.6 2.8h3.4M12 9.2l-3.8.8-2.2 3.6"/></svg><span>Correr</span></button>
+      <button data-act="beam" class="tb sm not-locker" aria-label="Ancho del haz"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l7-5v10z"/><path d="M13 7.5l7-3M13 12h8M13 16.5l7 3"/></svg><span>Haz</span></button>
+      <button data-act="crank" data-mode="hold" class="tb sm" aria-label="Manivela"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="14" r="5.5"/><path d="M10 14l6.6-6.6M15 5.6l3.4 3.4"/></svg><span>Manivela</span></button>
+      <button data-act="throwhold" class="tb needs-bottles not-locker" aria-label="Lanzar botella"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2.8h4v4.2l2 3V21H8V10l2-3z"/><path d="M8 14.5h8"/></svg><span>Lanzar</span></button>
+      <button data-act="breath" data-mode="hold" class="tb big locker-only" aria-label="Aguantar la respiración"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v7.5"/><path d="M12 9c-1 2-3.2 2-4.2 4.2-1.2 3-1 6.4.4 7 2 .9 3.8-.4 3.8-3.4M12 9c1 2 3.2 2 4.2 4.2 1.2 3 1 6.4-.4 7-2 .9-3.8-.4-3.8-3.4"/></svg><span>Aliento</span></button>
+    </div>
+    <div class="ttop"><button id="journal-touch" class="tb sm" aria-label="Diario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h11.5v18H6z"/><path d="M9 3v18M12 8h3.5M12 11.5h3.5"/></svg></button><button id="pause-touch" class="tb sm" aria-label="Pausa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg></button></div>
+  </div>
+
+  <section id="gate" class="screen" hidden>
+    <div class="gate-block">
+      <p class="eyebrow">Hospital San Jorge · 1992</p>
+      <p class="gate-title grit">Ronda de noche</p>
+      <p class="gate-cta"><span class="kbm-only">Haz clic para entrar</span><span class="touch-only">Toca para entrar</span></p>
+      <p class="fine">Usa audífonos</p>
+    </div>
+  </section>
+
+  <section id="title" class="screen" hidden>
+    <div class="title-block">
+      <p class="eyebrow"><i class="dot"></i><span class="clock" id="title-clock">03:47:00</span><span class="where">Hospital San Jorge · Pabellón B · 1992</span></p>
+      <h1 class="grit">Ronda<br>de noche</h1>
+      <p class="tag">Ella todavía hace la ronda.</p>
+      <label id="who" class="who"><span>¿Quién hace la ronda?</span><input id="player-name" type="text" maxlength="40" autocomplete="nickname" enterkeyhint="go" spellcheck="false" placeholder="Tu nombre o apodo"></label>
+      <nav class="menu">
+        <button id="btn-start" class="lead">Empezar la noche</button>
+        <button id="btn-settings">Ajustes</button>
+        <button id="btn-controls">Controles</button>
+      </nav>
+      <p class="fine">Usa audífonos. Tiene sustos repentinos; en Ajustes puedes reducirlos.<br>Tramo jugable: recepción, Pabellón B y el primer fusible.<span id="tele-note" hidden><br>Guardamos tu nombre, tu recorrido y lo que haces en la partida para mejorar el juego.</span></p>
+    </div>
+  </section>
+
+  <section id="calibrate" class="screen" hidden>
+    <div class="panel narrow">
+      <h2>Brillo</h2>
+      <p>Sube o baja el brillo hasta que la puerta apenas se vea.</p>
+      <div class="cal-box"><svg id="cal-symbol" viewBox="0 0 60 90" aria-hidden="true"><rect x="8" y="6" width="44" height="80" fill="#0e0f0d"/><rect x="16" y="14" width="28" height="26" fill="#050605"/><circle cx="44" cy="52" r="3" fill="#050605"/></svg></div>
+      <label class="row"><span class="lbl">Brillo</span><input id="cal-bright" type="range" min="0.6" max="1.8" step="0.05" value="1"></label>
+      <button id="btn-calibrate-done" class="primary">Continuar</button>
+    </div>
+  </section>
+
+  <section id="intro" class="screen" hidden><div id="intro-lines"></div><p class="skip">Presiona cualquier tecla para saltar</p></section>
+
+  <section id="pause" class="screen" hidden>
+    <div class="panel narrow">
+      <h2>Pausa</h2>
+      <nav class="menu">
+        <button id="btn-resume">Continuar</button>
+        <button id="btn-pause-journal">Diario</button>
+        <button id="btn-pause-settings">Ajustes</button>
+        <button id="btn-pause-retry">Volver al punto de control</button>
+        <button id="btn-pause-quit">Salir al título</button>
+      </nav>
+    </div>
+  </section>
+
+  <section id="settings" class="screen" hidden>
+    <div class="panel wide">
+      <h2>Ajustes</h2>
+      <form id="settings-form" onsubmit="return false"></form>
+      <button id="btn-settings-back" class="primary">Listo</button>
+    </div>
+  </section>
+
+  <section id="controls" class="screen" hidden>
+    <div class="panel wide">
+      <h2>Controles</h2>
+      <div class="table-wrap">
+        <table class="controls">
+          <thead><tr><th>Acción</th><th>Teclado y mouse</th><th>Control</th><th>Celular</th></tr></thead>
+          <tbody>
+            <tr><td>Moverse · mirar</td><td>WASD · mouse</td><td>Stick izquierdo · derecho</td><td>Pulgar izquierdo · arrastrar a la derecha</td></tr>
+            <tr><td>Correr</td><td>Shift</td><td>L3</td><td>Correr, o el stick al tope</td></tr>
+            <tr><td>Agacharse (sin ruido)</td><td>C (toca: alterna · mantén: momentáneo)</td><td>B</td><td>Agachar</td></tr>
+            <tr><td>Usar · esconderse</td><td>E</td><td>A</td><td>Usar, o toca el centro</td></tr>
+            <tr><td>Linterna · ancho del haz</td><td>F · rueda o Q</td><td>Y · cruceta</td><td>Luz · Haz</td></tr>
+            <tr><td>Manivela (hace ruido)</td><td>Mantén R</td><td>Mantén X</td><td>Mantén Manivela</td></tr>
+            <tr><td>Apuntar · lanzar botella</td><td>Mantén clic derecho · clic izquierdo</td><td>Mantén LT · RT</td><td>Mantén Lanzar y suelta</td></tr>
+            <tr><td>Aguantar la respiración (en un casillero)</td><td>Mantén Espacio</td><td>Mantén RB</td><td>Mantén Aliento</td></tr>
+            <tr><td>Diario · pausa</td><td>Tab · Esc</td><td>View · Start</td><td>Íconos arriba a la derecha</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button id="btn-controls-back" class="primary">Volver</button>
+    </div>
+  </section>
+
+  <section id="note" class="screen" hidden>
+    <article class="paper">
+      <header><p id="note-meta" class="eyebrow"></p><h2 id="note-title"></h2></header>
+      <pre id="note-body"></pre>
+      <footer><button id="btn-note-close">Dejar la nota <span id="note-close-key"></span></button></footer>
+    </article>
+  </section>
+
+  <section id="journal" class="screen" hidden>
+    <div class="panel wide clipboard">
+      <h2>Diario</h2>
+      <p class="eyebrow">Objetivo</p>
+      <p id="journal-objective"></p>
+      <p class="eyebrow" id="journal-records"></p>
+      <div id="journal-notes"></div>
+      <button id="btn-journal-close" class="primary">Cerrar</button>
+    </div>
+  </section>
+
+  <section id="caught" class="screen" hidden>
+    <div class="caught-block">
+      <h2 class="grit">A la cama</h2>
+      <p id="caught-line"></p>
+      <nav class="menu row-menu"><button id="btn-retry">Intentar otra vez</button><button id="btn-caught-quit">Salir al título</button></nav>
+    </div>
+  </section>
+
+  <section id="end" class="screen" hidden>
+    <div class="panel wide">
+      <p class="eyebrow">Tablero eléctrico · circuito del pabellón</p>
+      <h2 class="big grit">Fusible 1 de 4 restaurado</h2>
+      <p>Al norte, las puertas de cirugía empiezan a zumbar. Ella sigue haciendo su ronda.</p>
+      <dl id="end-stats"></dl>
+      <nav class="menu row-menu"><button id="btn-end-continue">Seguir explorando</button><button id="btn-end-restart">Jugar otra vez</button><button id="btn-end-title">Título</button></nav>
+    </div>
+  </section>
+
+  <div id="rotate" hidden><p>Gira el celular para jugar en horizontal.</p></div>
+  <p id="boot-error" hidden></p>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
