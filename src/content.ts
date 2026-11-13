@@ -78,6 +78,14 @@ export const FEAR = [
 
 export const GLASS: [number, number][] = [[26, 4], [27, 3], [28, 4]];
 
+// Where the roof leaks (world metres). Each one is a stain on the ceiling, a puddle under it (s = its size), the
+// wall beside it wet from the ceiling down if there is one, and a drip at the ones marked.
+export const LEAKS: { x: number; z: number; s: number; drip?: boolean }[] = [
+  { x: 32.5, z: 18.6, s: 1.4, drip: true }, { x: 31, z: 30, s: 1.1 }, { x: 26.3, z: 42.2, s: 1.6, drip: true }, { x: 13.2, z: 22.6, s: 1.3, drip: true },
+  { x: 7.6, z: 13.3, s: 1.0 }, { x: 40, z: 8, s: 1.7 }, { x: 13.4, z: 6.9, s: 1.2 }, { x: 50, z: 20, s: 1.3, drip: true }, { x: 12, z: 36.5, s: 0.9 },
+  { x: 52, z: 39, s: 1.0 }, { x: 56.6, z: 25, s: 1.0 },
+];
+
 export const PATROL: [number, number][] = [
   [4, 3], [12, 4], [20, 3], [27, 4], [22, 7], [26, 12], [19, 11],
   [7, 7], [11, 12], [5, 12], [15, 7], [16, 14],

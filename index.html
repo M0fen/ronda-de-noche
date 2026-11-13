@@ -19,6 +19,8 @@
     <div id="toast" hidden></div>
     <div id="area-card" hidden><span id="area-name" class="grit"></span><span id="area-sub"></span></div>
     <div id="crosshair"></div>
+    <div id="noise" aria-hidden="true"></div>
+    <div id="aware" hidden aria-hidden="true"><svg viewBox="0 0 40 20"><path class="lid" d="M2 10 Q20 -4 38 10 Q20 24 2 10z"/><circle class="iris" cx="20" cy="10" r="4.2"/></svg></div>
     <div id="marker" hidden><i></i></div>
     <div id="lockhint" hidden>Haz clic para mirar</div>
     <div id="stamina" hidden><div class="meter"><i id="stamina-fill"></i></div></div>
@@ -62,13 +64,13 @@
       <p class="eyebrow"><i class="dot"></i><span class="clock" id="title-clock">03:47:00</span><span class="where">Hospital San Jorge · Pabellón B · 1992</span></p>
       <h1 class="grit">Ronda<br>de noche</h1>
       <p class="tag">Ella todavía hace la ronda.</p>
-      <label id="who" class="who"><span>¿Quién hace la ronda?</span><input id="player-name" type="text" maxlength="40" autocomplete="nickname" enterkeyhint="go" spellcheck="false" placeholder="Tu nombre o apodo"></label>
+      <label id="who" class="who"><span>¿Quién hace la ronda? <em>(opcional)</em></span><input id="player-name" type="text" maxlength="40" autocomplete="nickname" enterkeyhint="go" spellcheck="false" placeholder="Tu nombre o apodo"></label>
       <nav class="menu">
         <button id="btn-start" class="lead">Empezar la noche</button>
         <button id="btn-settings">Ajustes</button>
         <button id="btn-controls">Controles</button>
       </nav>
-      <p class="fine">Usa audífonos. Tiene sustos repentinos; en Ajustes puedes reducirlos.<br>Tramo jugable: recepción, Pabellón B y el primer fusible.<span id="tele-note" hidden><br>Guardamos tu nombre, tu recorrido y lo que haces en la partida para mejorar el juego.</span></p>
+      <p class="fine">Usa audífonos. Tiene sustos repentinos; en Ajustes puedes reducirlos.<br>Tramo jugable: recepción, Pabellón B y el primer fusible.<span id="tele-note" hidden><br>Guardamos tu recorrido y lo que haces en la partida (y tu nombre, si lo pones) para mejorar el juego.</span></p>
     </div>
   </section>
 
@@ -90,6 +92,7 @@
       <nav class="menu">
         <button id="btn-resume">Continuar</button>
         <button id="btn-pause-journal">Diario</button>
+        <button id="btn-pause-map">Plano</button>
         <button id="btn-pause-settings">Ajustes</button>
         <button id="btn-pause-retry">Volver al punto de control</button>
         <button id="btn-pause-quit">Salir al título</button>
@@ -120,7 +123,7 @@
             <tr><td>Manivela (hace ruido)</td><td>Mantén R</td><td>Mantén X</td><td>Mantén Manivela</td></tr>
             <tr><td>Apuntar · lanzar botella</td><td>Mantén clic derecho · clic izquierdo</td><td>Mantén LT · RT</td><td>Mantén Lanzar y suelta</td></tr>
             <tr><td>Aguantar la respiración (en un casillero)</td><td>Mantén Espacio</td><td>Mantén RB</td><td>Mantén Aliento</td></tr>
-            <tr><td>Diario · pausa</td><td>Tab · Esc</td><td>View · Start</td><td>Íconos arriba a la derecha</td></tr>
+            <tr><td>Diario · plano · pausa</td><td>Tab · M · Esc</td><td>View · cruceta → · Start</td><td>Íconos arriba a la derecha</td></tr>
           </tbody>
         </table>
       </div>
@@ -143,8 +146,16 @@
       <p id="journal-objective"></p>
       <p class="eyebrow" id="journal-records"></p>
       <div id="journal-notes"></div>
-      <button id="btn-journal-close" class="primary">Cerrar</button>
+      <div class="row-btns"><button id="btn-journal-map">Ver el plano</button><button id="btn-journal-close" class="primary">Cerrar</button></div>
     </div>
+  </section>
+
+  <section id="map" class="screen" hidden>
+    <article class="paper plan">
+      <header><p class="eyebrow">Hospital San Jorge · Primer piso · Fotocopia</p><h2>Plano de evacuación</h2></header>
+      <canvas id="map-canvas" width="760" height="500"></canvas>
+      <footer><p class="legend"><span class="lg you">Usted está aquí</span><span class="lg obj">Objetivo</span><span class="lg hide">Escondite</span><span class="lg dim">Sin recorrer</span></p><button id="btn-map-close">Doblar el plano <span id="map-close-key"></span></button></footer>
+    </article>
   </section>
 
   <section id="caught" class="screen" hidden>

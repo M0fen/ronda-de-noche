@@ -9,12 +9,12 @@ export interface Settings {
 export const KEY_LABELS: Record<string, string> = {
   forward: 'Avanzar', back: 'Retroceder', left: 'Paso a la izquierda', right: 'Paso a la derecha',
   sprint: 'Correr', crouch: 'Agacharse', interact: 'Usar / esconderse', torch: 'Linterna', beam: 'Ancho del haz',
-  crank: 'Manivela', breath: 'Aguantar la respiración', journal: 'Diario',
+  crank: 'Manivela', breath: 'Aguantar la respiración', journal: 'Diario', map: 'Plano',
 };
 
 export const DEFAULT_KEYS: Record<string, string> = {
   forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', sprint: 'ShiftLeft', crouch: 'KeyC',
-  interact: 'KeyE', torch: 'KeyF', beam: 'KeyQ', crank: 'KeyR', breath: 'Space', journal: 'Tab',
+  interact: 'KeyE', torch: 'KeyF', beam: 'KeyQ', crank: 'KeyR', breath: 'Space', journal: 'Tab', map: 'KeyM',
 };
 
 const DEFAULTS: Settings = {

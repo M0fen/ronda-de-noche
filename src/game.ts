@@ -19,7 +19,7 @@ import { Storm } from './storm';
 // title shot: you have just found her. Torch on her chest, the ward and the storm behind; she stands on the right third
 const TITLE = { x: 12.0, z: 23.35, yaw: 1.32, pitch: -0.06, nx: 9.1, nz: 21.9, nyaw: 1.107 };
 
-type Mode = 'title' | 'calibrate' | 'intro' | 'play' | 'pause' | 'note' | 'journal' | 'caught' | 'caughtUI' | 'end';
+type Mode = 'title' | 'calibrate' | 'intro' | 'play' | 'pause' | 'note' | 'journal' | 'map' | 'caught' | 'caughtUI' | 'end';
 
 export class Game {
   settings: Settings = loadSettings();
@@ -147,8 +147,8 @@ export class Game {
     this.player.spawn(TITLE.x, TITLE.z, TITLE.yaw);
     this.player.eyeH = 1.5;
     this.nurse.teleport(TITLE.nx, TITLE.nz, TITLE.nyaw);
-    this.nurse.reset('frozen');
-    const lamp = this.props.lamps.find(l => l.id === 'lamp_ward'); if (lamp) lamp.on = true;
+    this.nurse.reset('frozen'); this.nurse.rig.root.visible = false; this.nurse.iv.visible = false;
+    const lamp = this.props.lamps.find(l => l.id === 'lamp_ward'); if (lamp) lamp.on = false; // the torch is the only light on the title
     this.ui.show('gate');
     this.ui.hud(false);
     this.post.u.uFade.value = 1;
@@ -181,6 +181,7 @@ export class Game {
     const lamp = this.props.lamps.find(l => l.id === 'lamp_ward'); if (lamp) lamp.on = false;
     this.mode = 'intro';
     const P = this.player; P.torch.on = false; P.torch.flick = 1; P.lightTarget.position.set(0, -0.05, -6); P.updateLight(); P.bounce.intensity = 0; this.post.hazeK = 0.016;
+    this.storm.auto = true; this.storm.moonK = 1; this.nurse.glintBoost = 0; this.nurse.layer.tilt.want = 0; this.nurse.lookWant = 0;
     this.nurse.rig.root.visible = false; this.nurse.iv.visible = false;
     this.player.spawn(this.level.start.x, this.level.start.z, 0);
     this.post.u.uFade.value = 1;
@@ -214,11 +215,25 @@ export class Game {
     this.ui.openNote(n);
   }
   closeNote() {
+    this.audio.noteClose();
     if (this.noteFromJournal) { this.ui.openJournal(this.journalBack); this.mode = 'journal'; return; }
     this.mode = 'play'; this.ui.show(''); this.lock();
   }
-  openJournalFromPlay() { if (this.mode !== 'play') return; this.mode = 'journal'; this.unlock(); this.ui.openJournal('play'); }
+  openJournalFromPlay() { if (this.mode !== 'play') return; this.mode = 'journal'; this.unlock(); this.audio.noteOpen(); this.ui.openJournal('play'); }
+  private mapBack: 'play' | 'pause' | 'journal' = 'play';
+  openMap(back: 'play' | 'pause' | 'journal') {
+    if (back === 'play' && this.mode !== 'play') return;
+    this.mapBack = back; this.mode = 'map'; this.unlock(); this.audio.mapOpen(); T.ev('map'); this.story.finish('map');
+    this.ui.openMap();
+  }
+  closeMap() {
+    this.audio.mapClose();
+    if (this.mapBack === 'pause') { this.mode = 'pause'; this.ui.show('pause'); return; }
+    if (this.mapBack === 'journal') { this.mode = 'journal'; this.ui.openJournal(this.journalBack); return; }
+    this.mode = 'play'; this.ui.show(''); this.lock();
+  }
   closeJournal() {
+    this.audio.noteClose();
     if (this.journalBack === 'pause') { this.mode = 'pause'; this.ui.show('pause'); return; }
     this.mode = 'play'; this.ui.show(''); this.lock();
   }
@@ -327,6 +342,7 @@ export class Game {
     const a = this.input.read(dt);
     if (a.pause) { this.pause(); return; }
     if (a.journal) { this.openJournalFromPlay(); return; }
+    if (a.map) { this.openMap('play'); return; }
     const P = this.player, N = this.nurse;
     const target = this.focus();
     if (a.interact && target && !P.inLocker) { target.use(); a.interact = false; this.input.rumble(0, 0.12, 40); }
@@ -402,45 +418,90 @@ export class Game {
   }
 
   private curtainAgents = [{ x: 0, z: 0 }, { x: 0, z: 0 }];
-  private titleAim = new THREE.Vector3(TITLE.nx, 1.12, TITLE.nz); private titleSec = -1; private titleT = 0; private titleScratch = false;
-  // her round on the title: she is there when you arrive, staring at you; scratches at her neck, tips her head;
-  // walks off into the dark on the right; the ward stays empty a while; she comes back in from the left and stops again
+  // ---- the title: she never moves while you can see her ---------------------------------------------
+  // Your torch is failing. Each time it dies she is closer when it comes back on, until she is at arm's length;
+  // the next time it comes back the ward is empty and the beam goes looking for her. Lightning lights the room
+  // in between (once, her too, somewhere she shouldn't be). Hovering «Empezar la noche» makes her tip her head.
+  private static STEPS = [
+    { x: 7.0, z: 18.2, tilt: 0 }, { x: 7.6, z: 20.0, tilt: 1 }, { x: 8.6, z: 21.4, tilt: 0 }, { x: 10.2, z: 22.0, tilt: 0.55 }, { x: 10.75, z: 22.55, tilt: 0 },
+  ];
+  private static SEQ: { step?: number; lit?: number; gone?: number; strike?: number; ghost?: number }[] = [
+    { gone: 2.6 }, { step: 0, lit: 4.6 }, { step: 1, lit: 4.2, strike: 1.7 }, { step: 2, lit: 3.9 }, { step: 3, lit: 3.4 }, { step: 4, lit: 2.9 }, { gone: 9.5, ghost: 3.6 },
+  ];
+  private static SEQ_SOFT: { step?: number; lit?: number; gone?: number; strike?: number; ghost?: number }[] = [
+    { gone: 2.6 }, { step: 0, lit: 5.2 }, { step: 1, lit: 5.0, strike: 2 }, { step: 2, lit: 5.5 }, { gone: 8 },
+  ];
+  private tl = { k: 0, phase: 'run' as 'run' | 'flicker' | 'dark', t: 0, struck: false, moved: false, ghost: false, hover: false, dim: 0, find: 0, up: 0 };
+  private titleAim = new THREE.Vector3(7, 1.0, 19); private titleSec = -1;
+  titleHover(on: boolean) { this.tl.hover = on; }
   private titleRound(dt: number) {
-    const N = this.nurse, cam = this.player.eye, t = this.titleT = (this.titleT + dt) % 30;
-    const X = TITLE.nx, ZS = TITLE.nz, Z0 = 28.6, Z1 = 14.6;
-    const faceCam = Math.atan2(cam.x - X, cam.z - ZS);
-    let z = ZS, sp = 0, face = faceCam;
-    if (t < 9.2) { /* there, staring */ }
-    else if (t < 10.4) face = Math.PI;                                          // turns away
-    else if (t < 17.4) { sp = 1; z = ZS - (t - 10.4); face = Math.PI; }         // walks off to the right
-    else if (t < 21.5) { z = Z1 - 3; face = Math.PI; }                          // gone
-    else if (t < 28.4) { sp = 1; z = Z0 - (t - 21.5) * (Z0 - ZS) / 6.9; face = Math.PI; } // back in from the left
-    N.pos.set(X, 0, z); N.speed += (sp - N.speed) * Math.min(1, dt * 6);
-    let dy = face - N.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); N.yaw += dy * Math.min(1, dt * 3.2);
-    if (this.titleScratch !== (t > 3.6 && t < 3.8) && t > 3.6 && t < 3.8) { if (N.rig.actions.has('scratch')) N.once('scratch'); else N.layer.scratch.want = 1; }
-    this.titleScratch = t > 3.6 && t < 3.8;
-    if (t > 7.4 && !N.rig.actions.has('scratch')) N.layer.scratch.want = 0;
-    N.layer.tilt.want = t > 7.6 && t < 9.2 ? 1 : 0;
-    N.lookWant = t < 9.4 || t > 28.6 ? 1 : 0; N.lookAt.copy(cam);
+    const N = this.nurse, cam = this.player.eye, tl = this.tl, soft = this.settings.reduced;
+    const SEQ = soft ? Game.SEQ_SOFT : Game.SEQ;
+    if (tl.k >= SEQ.length) tl.k = 0;
+    const cur = SEQ[tl.k], present = cur.step !== undefined;
+    const darkDur = cur.step === 4 ? 2.6 : 1.3;
+    tl.t += dt;
+    const place = (x: number, z: number) => { N.teleport(x, z, Math.atan2(cam.x - x, cam.z - z)); N.rig.root.visible = true; N.iv.visible = true; };
+    const hide = () => { N.rig.root.visible = false; N.iv.visible = false; };
+    let glint = 0;
+    if (tl.phase === 'run') {
+      if (cur.strike !== undefined && !tl.struck && tl.t > cur.strike) { tl.struck = true; this.storm.strike(0.55); }
+      if (cur.ghost !== undefined && !tl.struck && tl.t > cur.ghost) { tl.struck = true; this.storm.strike(0.9); tl.ghost = true; place(5.0, 17.0); }
+      if (tl.ghost) { const on = this.storm.flash > 0.12; N.rig.root.visible = on; N.iv.visible = on; glint = on ? 0.6 : 0; if (tl.t > (cur.ghost ?? 0) + 1.6) { tl.ghost = false; hide(); } }
+      if (present) glint = 0.3 + (tl.hover ? 0.45 : 0) + (cur.step === 4 ? 0.4 : 0);
+      if (tl.t > (cur.lit ?? cur.gone ?? 4)) { tl.phase = 'flicker'; tl.t = 0; this.audio.torchDie(0.16); }
+    } else if (tl.phase === 'flicker') {
+      glint = present ? 0.45 : 0;
+      if (tl.t > 0.7) { tl.phase = 'dark'; tl.t = 0; tl.moved = false; }
+    } else {
+      const next = SEQ[(tl.k + 1) % SEQ.length];
+      if (!tl.moved && tl.t > darkDur * 0.5) {
+        tl.moved = true;
+        if (next.step !== undefined) { const p = Game.STEPS[next.step]; place(p.x, p.z); } else hide();
+      }
+      // eyeshine in the dark: there, gone (a blink), there again - closer
+      const k = tl.t / darkDur, nowHere = tl.moved ? next.step !== undefined : present;
+      glint = nowHere && (k < 0.34 || k > 0.62) ? (soft ? 0.3 : 0.55) : 0;
+      if (tl.t > darkDur) {
+        tl.k = (tl.k + 1) % SEQ.length; tl.phase = 'run'; tl.t = 0; tl.struck = false; tl.find = 0.6;
+        this.audio.click();
+        if (next.step === 4 && !soft) this.audio.thud(0.5);
+      }
+    }
+    const nowCur = SEQ[tl.k], step = nowCur.step !== undefined && tl.phase !== 'dark' ? Game.STEPS[nowCur.step] : null;
+    N.glintBoost = glint;
+    N.layer.tilt.want = step ? Math.max(step.tilt, tl.hover ? 1 : 0) : 0;
+    N.lookWant = 1; N.lookAt.copy(cam);
+    N.speed = 0;
+    tl.dim += ((tl.phase === 'dark' ? 0.3 : 0) - tl.dim) * Math.min(1, dt * (tl.phase === 'dark' ? 12 : 6));
+    // when she is at arm's length you look up into her face
+    tl.up += ((step === Game.STEPS[4] ? 0.15 : 0) - tl.up) * Math.min(1, dt * 2.5);
+    this.storm.moonK += ((tl.phase === 'dark' ? 0.12 : 1) - this.storm.moonK) * Math.min(1, dt * 10);
+    return { lit: tl.phase === 'run' ? 1 : tl.phase === 'flicker' ? (soft ? 1 - tl.t / 0.7 : (Math.sin(tl.t * 38) + Math.sin(tl.t * 61 + 2) > 0.1 + tl.t * 1.5 ? 0.95 : 0.06)) : 0, present: !!step };
   }
   private title(dt: number) {
     const t = this.time, P = this.player;
-    P.yaw = TITLE.yaw + Math.sin(t * 0.11) * 0.03; P.pitch = TITLE.pitch + Math.sin(t * 0.17) * 0.012;
+    P.yaw = TITLE.yaw + Math.sin(t * 0.11) * 0.03; P.pitch = TITLE.pitch + Math.sin(t * 0.17) * 0.012 + this.tl.up;
     P.pos.x = TITLE.x + Math.sin(t * 0.05) * 0.15;
     P.syncCamera(dt);
     const N = this.nurse;
-    N.rig.root.visible = true;
-    this.titleRound(dt);
-    N.glintBoost = 0.3 + Math.max(0, Math.sin(t * 0.6) - 0.6) * 1.2;
+    this.storm.auto = false;
+    const st = this.titleRound(dt);
     N.update(dt, []);
-    // the torch follows her: aim the beam at her waist (the target lives in camera space; the face stays in the
-    // falloff and the eyes catch), her presence tugs at the bulb
-    const L = P.light, T = P.torch, aim = this.titleAim;
-    aim.x += (N.pos.x - aim.x) * Math.min(1, dt * 2.2); aim.z += (N.pos.z - aim.z) * Math.min(1, dt * 2.2); aim.y = 1.12;
+    // the torch: on her when she's there (finding her fast when it comes back on), otherwise sweeping the ward
+    const L = P.light, T = P.torch, aim = this.titleAim, tl = this.tl;
+    if (st.present) {
+      const k = Math.min(1, dt * (tl.find > 0 ? 7 : 2.2)); tl.find = Math.max(0, tl.find - dt);
+      aim.x += (N.pos.x - aim.x) * k; aim.z += (N.pos.z - aim.z) * k; aim.y += (1.12 - aim.y) * k;
+    } else if (tl.phase === 'run') {
+      const sx = 6.6 + 1.9 * Math.sin(t * 0.43), sz = 19.4 + 2.3 * Math.sin(t * 0.29 + 1), k = Math.min(1, dt * 1.2);
+      aim.x += (sx - aim.x) * k; aim.z += (sz - aim.z) * k; aim.y += (0.75 - aim.y) * k;
+    }
     this.camera.updateMatrixWorld();
     P.lightTarget.position.copy(aim); this.camera.worldToLocal(P.lightTarget.position);
-    const fl = this.settings.reduced ? 1 : 1 - 0.32 * Math.max(0, Math.sin(t * 2.7) * Math.sin(t * 4.3 + 1));
-    T.on = true; T.flick = fl; T.range = 17; L.angle = 0.7; L.distance = 17; L.intensity = 15 * fl; this.post.hazeK = 0.045; // thicker air: the beam reads
+    const fl = this.settings.reduced ? 1 : 1 - 0.16 * Math.max(0, Math.sin(t * 2.7) * Math.sin(t * 4.3 + 1));
+    const lit = st.lit * fl;
+    T.on = lit > 0.02; T.flick = Math.max(0.01, lit); T.range = 17; L.angle = 0.7; L.distance = 17; L.intensity = 15 * lit; this.post.hazeK = 0.045; // thicker air: the beam reads
     L.getWorldPosition(T.pos); T.dir.copy(aim).sub(T.pos).normalize();
     P.bounce.position.copy(aim).addScaledVector(T.dir, -0.45); P.bounce.intensity = L.intensity * 0.05;
     const sec = Math.floor(t) % 60;
@@ -449,8 +510,10 @@ export class Game {
       if (el) el.textContent = `03:${47 + Math.floor(t / 60) % 12}:${String(sec).padStart(2, '0')}`;
     }
     const u = this.post.u;
-    u.uFade.value = Math.max(0, u.uFade.value - dt * 0.5);
+    this.titleFade = Math.max(0, this.titleFade - dt * 0.5);
+    u.uFade.value = Math.max(this.titleFade, tl.dim);
   }
+  private titleFade = 1;
 
   private loop(now: number) {
     const dt = Math.min(0.05, (now - this.last) / 1000);
@@ -475,7 +538,8 @@ export class Game {
       case 'intro': { const a = this.input.read(dt); if (a.any || a.interact) this.beginPlay(); break; }
       case 'pause': { const a = this.input.read(dt); if (a.pause) this.resume(); break; }
       case 'note': { const a = this.input.read(dt); if (a.pause || a.interact) this.closeNote(); break; }
-      case 'journal': { const a = this.input.read(dt); if (a.pause || a.journal) this.closeJournal(); break; }
+      case 'journal': { const a = this.input.read(dt); if (a.pause || a.journal) this.closeJournal(); else if (a.map) this.openMap('journal'); break; }
+      case 'map': { const a = this.input.read(dt); if (a.pause || a.map || a.interact || a.crouch) this.closeMap(); break; }
       default: this.input.read(dt);
     }
     // world presentation

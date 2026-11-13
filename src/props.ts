@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Level, T, type Box } from './level';
 import type { Tex } from './textures';
 import { rng, signTex } from './textures';
-import { BOTTLES, LAMPS, NOTES, EMERGENCY, GLASS, SIGNS, FACING, type NoteDef } from './content';
+import { BOTTLES, LAMPS, NOTES, EMERGENCY, GLASS, SIGNS, FACING, LEAKS, type NoteDef } from './content';
 import { mergeStatic } from './merge';
 
 export interface Locker { id: string; kind: 'locker' | 'bed'; inside: THREE.Vector3; front: THREE.Vector3; yaw: number; out: THREE.Vector3; door: THREE.Object3D; doorAngle: number; doorTarget: number }
@@ -495,7 +495,7 @@ export class Props {
     curtain(26.0, 16.15, 27.9, 16.15); curtain(26.0, 25.85, 27.9, 25.85);
     // wet floor patches that catch the torch
     const pudM = new THREE.MeshStandardMaterial({ color: 0x060707, roughness: 0.08, metalness: 0, transparent: true, alphaMap: tex.puddle, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-    for (const [x, z, sc] of [[32, 16, 1.4], [31, 30, 1.1], [26, 42, 1.6], [12, 22, 1.3], [8, 14.5, 1.0], [40, 8, 1.7], [14, 7.4, 1.2], [46, 20, 1.3], [12, 36.5, 0.9], [52, 39, 1.0]] as [number, number, number][]) {
+    for (const { x, z, s: sc } of LEAKS) { // under the leaks (the ceiling above is stained to match)
       const pd = new THREE.Mesh(new THREE.PlaneGeometry(1.6 * sc, 1.2 * sc), pudM);
       pd.rotation.x = -Math.PI / 2; pd.rotation.z = R() * 6; pd.position.set(x, 0.008, z); pd.receiveShadow = true;
       add(pd);
@@ -574,7 +574,7 @@ export class Props {
     // water drips from the ceiling
     const dropM = new THREE.MeshBasicMaterial({ color: 0x9fb2b4, transparent: true, opacity: 0.6 });
     const ringM = () => new THREE.MeshBasicMaterial({ color: 0xa8b8bb, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
-    for (const [x, z] of [[32.6, 18], [14, 23], [20, 44], [52, 20]]) {
+    for (const { x, z } of LEAKS.filter(l => l.drip)) {
       const drop = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 4), dropM); drop.position.set(x, 2.95, z); drop.visible = false; drop.userData.dynamic = true; add(drop);
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.055, 16), ringM()); ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.015, z); ring.visible = false; ring.userData.dynamic = true; add(ring);
       this.drips.push({ x, z, t: R() * 3, drop, ring, y: 2.95, ringT: 0 });

@@ -1,5 +1,6 @@
 import { T } from './telemetry';
 import * as THREE from 'three';
+import { applySigil } from './sigil';
 import { GLTFLoader, type GLTFParser } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Game } from './game';
 import type { Locker, Lamp } from './props';
@@ -383,6 +384,7 @@ async function loadGLB(url: string) {
   } catch (e) { nurseLoadError = String(e); console.warn('[nurse] model failed, using the placeholder:', e); return null; }
 }
 
+export let sigilCount = 0;
 export async function buildRig(tex: PTex & { glint: THREE.Texture }, url = NURSE_URL): Promise<Rig> {
   let root: THREE.Group, head: THREE.Object3D, clips: THREE.AnimationClip[], source: Rig['source'] = 'placeholder';
   const gltf = await loadGLB(url);
@@ -408,6 +410,7 @@ export async function buildRig(tex: PTex & { glint: THREE.Texture }, url = NURSE
       if (anchor) anchor.add(sp); else { head.add(sp); sp.position.set((n.endsWith('L') ? 0.032 : -0.032) / s, 0.03 / s, 0.09 / s); }
       glints.push(sp);
     }
+    sigilCount = applySigil(model);
     clips = gltf.animations.map(c => { const k = c.clone(); k.name = c.name.toLowerCase(); return k; });
   } else {
     const p = placeholder(tex);
@@ -822,8 +825,8 @@ export class Nurse {
       if (this.arrived() || Math.hypot(this.pos.x - l.front.x, this.pos.z - l.front.z) < 0.35) {
         this.insp = this.sawEnter ? 'open' : 'peek'; this.inspT = 0; this.path = [];
         if (l.kind === 'bed') { this.layer.bend.want = 1; if (!this.sawEnter) this.say('v_quieto', 'No te muevas… no te muevas.', 0.6); }
-        else if (this.sawEnter) this.once('open_locker');
-        else this.say('v_quieto', 'No te muevas… no te muevas.', this.tutorial ? 1 : 0.6);
+        else { this.game.audio.keys({ x: this.pos.x, y: 1.0, z: this.pos.z }); if (this.sawEnter) this.once('open_locker'); } // the key ring on her belt as she leans in
+        if (l.kind !== 'bed' && !this.sawEnter) this.say('v_quieto', 'No te muevas… no te muevas.', this.tutorial ? 1 : 0.6);
       }
       return;
     }

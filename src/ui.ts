@@ -3,7 +3,7 @@ import type { Game } from './game';
 import type { Device } from './input';
 import type { Note } from './props';
 import { KEY_LABELS, DEFAULT_KEYS, keyName, saveSettings } from './settings';
-import { RECORDS_TOTAL } from './content';
+import { RECORDS_TOTAL, AREAS, MAP } from './content';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -38,6 +38,7 @@ export class UI {
   private screen = '';
   settingsBack: () => void = () => { };
   tutorialHint = false;
+  private quietFocus = false;
 
   constructor(private game: Game) {
     const G = game;
@@ -47,6 +48,20 @@ export class UI {
       root.setProperty('--paper-grain', `url("${paperURL()}")`);
     } catch { /* canvas unavailable: plain type */ }
     const on = (id: string, fn: () => void) => $(id).addEventListener('click', e => { e.preventDefault(); fn(); });
+    // menu sound: a tick moving between items (mouse, keys or pad), a switch on choosing; never for the
+    // focus a screen puts on its first button by itself
+    const item = (e: Event) => (e.target as HTMLElement | null)?.closest?.('.screen button, .screen select, .screen input[type=range], .screen input[type=checkbox]') ?? null;
+    let hovered: Element | null = null;
+    const tick = (e: Event) => {
+      const b = item(e);
+      if (!b || b === hovered || this.quietFocus || (e as PointerEvent).pointerType === 'touch') return;
+      hovered = b; G.audio.hover();
+      if (b.id === 'btn-start') G.titleHover(true);
+    };
+    document.addEventListener('pointerover', tick); document.addEventListener('focusin', tick);
+    document.addEventListener('pointerout', e => { const b = item(e); if (b && b === hovered) { hovered = null; if (b.id === 'btn-start') G.titleHover(false); } });
+    document.addEventListener('focusout', e => { if (item(e)?.id === 'btn-start') G.titleHover(false); });
+    document.addEventListener('click', e => { const b = (e.target as HTMLElement | null)?.closest?.('.screen button'); if (b && !b.classList.contains('bind')) G.audio.select(); }, true);
     // who's doing the round tonight: asked only where the play log is kept (the hosted demo)
     const who = $('player-name') as HTMLInputElement;
     if (T.possible) {
@@ -55,8 +70,7 @@ export class UI {
       who.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ($('btn-start') as HTMLButtonElement).click(); } });
     } else $('who').hidden = true;
     on('btn-start', () => {
-      const name = who.value.trim();
-      if (T.possible && !name) { who.focus(); $('who').classList.remove('shake'); void $('who').offsetWidth; $('who').classList.add('shake'); return; }
+      const name = who.value.trim(); // optional: an empty name plays as «Anónimo»
       try { localStorage.setItem('night-rounds:name', name); } catch { /* private mode */ }
       who.blur(); G.start(name);
     });
@@ -72,6 +86,9 @@ export class UI {
     on('btn-caught-quit', () => G.quit());
     on('btn-note-close', () => G.closeNote());
     on('btn-journal-close', () => G.closeJournal());
+    on('btn-pause-map', () => G.openMap('pause'));
+    on('btn-journal-map', () => G.openMap('journal'));
+    on('btn-map-close', () => G.closeMap());
     on('btn-settings-back', () => { saveSettings(G.settings); G.applySettings(); this.settingsBack(); });
     on('btn-end-continue', () => G.continueAfterEnd());
     on('btn-end-restart', () => G.restartAll());
@@ -84,10 +101,10 @@ export class UI {
 
   get current() { return this.screen; }
   show(id: string) {
-    this.screen = id;
+    this.screen = id; document.body.dataset.screen = id;
     document.querySelectorAll<HTMLElement>('.screen').forEach(s => { s.hidden = s.id !== id; });
     const first = id ? $(id)?.querySelector<HTMLElement>('button, input, select') : null;
-    if (first && this.device !== 'touch') setTimeout(() => first.focus({ preventScroll: true }), 30);
+    if (first && this.device !== 'touch') setTimeout(() => { this.quietFocus = true; first.focus({ preventScroll: true }); this.quietFocus = false; }, 30);
   }
   hud(on: boolean) {
     $('hud').hidden = !on;
@@ -104,13 +121,13 @@ export class UI {
     const k = this.game.settings.keys;
     const kbm: Record<string, string> = {
       move: 'WASD · Mouse', torch: keyName(k.torch), beam: `Rueda · ${keyName(k.beam)}`, crank: `Mantén ${keyName(k.crank)}`, crouch: keyName(k.crouch),
-      interact: keyName(k.interact), throw: 'Mantén clic der. · clic izq.', breath: `Mantén ${keyName(k.breath)}`, journal: keyName(k.journal), sprint: `Mantén ${keyName(k.sprint)}`,
+      interact: keyName(k.interact), throw: 'Mantén clic der. · clic izq.', breath: `Mantén ${keyName(k.breath)}`, journal: keyName(k.journal), sprint: `Mantén ${keyName(k.sprint)}`, map: keyName(k.map),
     };
     const pad: Record<string, string> = {
-      move: 'Stick izq. · stick der.', torch: 'Y', beam: 'Cruceta', crank: 'Mantén X', crouch: 'B', interact: 'A', throw: 'Mantén LT · RT', breath: 'Mantén RB', journal: 'View', sprint: 'Mantén L3',
+      move: 'Stick izq. · stick der.', torch: 'Y', beam: 'Cruceta', crank: 'Mantén X', crouch: 'B', interact: 'A', throw: 'Mantén LT · RT', breath: 'Mantén RB', journal: 'View', sprint: 'Mantén L3', map: 'Cruceta →',
     };
     const touch: Record<string, string> = {
-      move: 'Pulgar izquierdo · arrastra a la derecha', torch: 'LUZ', beam: 'HAZ', crank: 'Mantén MANIVELA', crouch: 'AGACHAR', interact: 'USAR', throw: 'Mantén LANZAR', breath: 'Mantén ALIENTO', journal: 'DIARIO', sprint: 'Mantén CORRER',
+      move: 'Pulgar izquierdo · arrastra a la derecha', torch: 'LUZ', beam: 'HAZ', crank: 'Mantén MANIVELA', crouch: 'AGACHAR', interact: 'USAR', throw: 'Mantén LANZAR', breath: 'Mantén ALIENTO', journal: 'DIARIO', sprint: 'Mantén CORRER', map: 'DIARIO · Ver el plano',
     };
     return (this.device === 'pad' ? pad : this.device === 'touch' ? touch : kbm)[act] ?? act;
   }
@@ -169,6 +186,27 @@ export class UI {
     el.style.opacity = String(Math.max(0, Math.min(1, left / 0.6)));
     if (left <= 0) this.clearThought();
   }
+  // ---- stealth feedback: a ring for every noise you make (red if she was close enough to hear it), and an eye
+  // that opens as she starts to notice you
+  private nz = { k: 0, r: 0, heard: false }; private aw = 0;
+  noiseEvent(r: number, loud: number, x: number, z: number) {
+    const N = this.game.nurse;
+    const heard = N.rig.root.visible && Math.hypot(N.pos.x - x, N.pos.z - z) < r;
+    const k = Math.min(1, loud * loud * 1.1); // a walk is a faint pulse, a sprint or the crank a hard ring
+    if (k >= this.nz.k * 0.8 || heard) this.nz = { k, r: Math.max(r, this.nz.k > 0.3 ? this.nz.r : 0), heard: heard || (this.nz.heard && this.nz.k > 0.3) };
+  }
+  private updateStealth(dt: number) {
+    const G = this.game, N = G.nurse, el = $('noise');
+    this.nz.k = Math.max(0, this.nz.k - dt * 1.7);
+    el.style.setProperty('--na', (this.nz.k * (G.settings.reduced ? 0.7 : 1)).toFixed(3));
+    el.style.setProperty('--nr', `${Math.round(12 + Math.min(16, this.nz.r) * 3.4)}px`);
+    el.classList.toggle('heard', this.nz.heard);
+    const target = N.rig.root.visible && G.mode === 'play' ? (N.state === 'chase' ? 1 : Math.min(1, N.awareness)) : 0;
+    this.aw += (target - this.aw) * Math.min(1, dt * 4);
+    const eye = $('aware');
+    eye.hidden = this.aw < 0.05;
+    if (!eye.hidden) { eye.style.setProperty('--open', (0.12 + this.aw * 0.88).toFixed(3)); eye.style.setProperty('--ao', Math.min(1, this.aw * 2.2).toFixed(3)); eye.classList.toggle('alarm', N.state === 'chase' || this.aw > 0.95); }
+  }
   toast(text: string, secs = 2.4) { const el = $('toast'); el.textContent = text; el.hidden = false; this.toastT = secs; }
   areaCard(name: string, sub: string) {
     $('area-name').textContent = name; $('area-sub').textContent = sub;
@@ -183,6 +221,7 @@ export class UI {
     if (this.toastT > 0) { this.toastT -= dt; if (this.toastT <= 0) $('toast').hidden = true; }
     if (this.areaT > 0) { this.areaT -= dt; if (this.areaT <= 0) $('area-card').hidden = true; }
     if (this.objT > 0) { this.objT -= dt; if (this.objT <= 0) $('objective').classList.remove('fresh'); }
+    this.updateStealth(dt);
     const bat = P.torch.battery;
     $('battery-fill').style.width = `${bat}%`;
     $('battery').classList.toggle('low', bat < 15);
@@ -235,6 +274,97 @@ export class UI {
     $('journal-records').textContent = `Registros ${G.stats.records} / ${RECORDS_TOTAL} · Fusibles ${G.props.panel.installed} / 4`;
     G.journalBack = back;
     this.show('journal');
+  }
+
+  // ---- the evacuation plan: the whole floor is printed, faint; the rooms you've been in are inked in with
+  // their names and hiding places; a red arrow for you and a dashed ring round where the objective points
+  openMap() {
+    const G = this.game, L = G.level, S = G.story, P = G.player, pr = G.props;
+    const cv = $('map-canvas') as HTMLCanvasElement, g = cv.getContext('2d')!;
+    const W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    let x0 = 99, x1 = 0, z0 = 99, z1 = 0;
+    for (const c of L.cells) if (c.kind !== 'wall' || MAP[c.cz][c.cx] === '=' || MAP[c.cz][c.cx] === 'X') { x0 = Math.min(x0, c.cx); x1 = Math.max(x1, c.cx); z0 = Math.min(z0, c.cz); z1 = Math.max(z1, c.cz); }
+    x0 -= 1; z0 -= 1; x1 += 1; z1 += 1;
+    const cs = Math.floor(Math.min((W - 40) / (x1 - x0 + 1), (H - 40) / (z1 - z0 + 1)));
+    const ox = Math.round((W - cs * (x1 - x0 + 1)) / 2) - x0 * cs, oz = Math.round((H - cs * (z1 - z0 + 1)) / 2) - z0 * cs;
+    const px = (wx: number) => ox + (wx / 2) * cs, pz = (wz: number) => oz + (wz / 2) * cs;
+    const areaOf = (cx: number, cz: number) => AREAS.find(a => cx >= a.x0 && cx <= a.x1 && cz >= a.z0 && cz <= a.z1);
+    const seen = new Set<number>();
+    for (const c of L.cells) {
+      if (c.kind === 'wall') continue;
+      const a = areaOf(c.cx, c.cz), k = c.cz * L.w + c.cx;
+      if ((a && S.seenAreas.has(a.id)) || S.visited.has(k)) seen.add(k);
+    }
+    for (const k of [...S.visited]) { const cx = k % L.w, cz = Math.floor(k / L.w); for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const n = L.cell(cx + dx, cz + dz); if (n && n.kind !== 'wall') seen.add(n.cz * L.w + n.cx); } }
+    const ink = (a: number) => `rgba(31, 36, 51, ${a})`;
+    // unwalked floor: a faint photocopy hatch; walked: clean paper
+    for (const c of L.cells) {
+      if (c.kind === 'wall') continue;
+      const X = ox + c.cx * cs, Z = oz + c.cz * cs;
+      if (seen.has(c.cz * L.w + c.cx)) { g.fillStyle = 'rgba(255, 252, 240, 0.32)'; g.fillRect(X, Z, cs, cs); }
+      else { g.strokeStyle = ink(0.14); g.lineWidth = 1; g.beginPath(); for (let i = -cs; i < cs; i += 4) { g.moveTo(X + Math.max(0, i), Z + Math.max(0, -i)); g.lineTo(X + Math.min(cs, i + cs), Z + Math.min(cs, cs - i)); } g.stroke(); }
+    }
+    // walls: an edge wherever floor meets wall, heavier where you've been
+    g.lineCap = 'square';
+    for (const c of L.cells) {
+      if (c.kind === 'wall') continue;
+      const X = ox + c.cx * cs, Z = oz + c.cz * cs, on = seen.has(c.cz * L.w + c.cx);
+      g.strokeStyle = ink(on ? 0.92 : 0.3); g.lineWidth = on ? 3 : 1.5;
+      for (const [dx, dz, ax, az, bx, bz] of [[0, -1, 0, 0, 1, 0], [1, 0, 1, 0, 1, 1], [0, 1, 0, 1, 1, 1], [-1, 0, 0, 0, 0, 1]]) {
+        const n = L.cell(c.cx + dx, c.cz + dz); if (n && n.kind !== 'wall') continue;
+        const ch = n ? MAP[n.cz][n.cx] : '#';
+        if (ch === '=' || ch === 'X') { g.save(); g.strokeStyle = on ? 'rgba(179, 38, 30, 0.9)' : 'rgba(179, 38, 30, 0.4)'; g.setLineDash([4, 3]); }
+        g.beginPath(); g.moveTo(X + ax * cs, Z + az * cs); g.lineTo(X + bx * cs, Z + bz * cs); g.stroke();
+        if (ch === '=' || ch === 'X') g.restore();
+      }
+      if (c.kind === 'door' && on && c.door) { // the swing of the leaf
+        const d = c.door, cx = X + cs / 2, cz = Z + cs / 2, r = cs * 0.42;
+        g.strokeStyle = ink(0.55); g.lineWidth = 1; g.beginPath();
+        if (d.axis === 'x') { g.moveTo(cx - r, cz); g.arc(cx - r, cz, r * 2 * 0.9, 0, -Math.PI / 2, true); } else { g.moveTo(cx, cz - r); g.arc(cx, cz - r, r * 2 * 0.9, Math.PI / 2, 0, true); }
+        g.stroke();
+        if (d.barred) { g.strokeStyle = 'rgba(179, 38, 30, 0.85)'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 5, cz - 5); g.lineTo(cx + 5, cz + 5); g.moveTo(cx + 5, cz - 5); g.lineTo(cx - 5, cz + 5); g.stroke(); }
+      }
+    }
+    // furniture where you've been
+    for (const c of L.cells) {
+      if (c.kind !== 'furn' || !seen.has(c.cz * L.w + c.cx)) continue;
+      const X = ox + c.cx * cs, Z = oz + c.cz * cs, ch = MAP[c.cz][c.cx];
+      g.strokeStyle = ink(0.6); g.lineWidth = 1; g.fillStyle = ink(0.08);
+      if (ch === 'B') { g.fillRect(X + cs * 0.15, Z + cs * 0.25, cs * 0.7, cs * 0.5); g.strokeRect(X + cs * 0.15, Z + cs * 0.25, cs * 0.7, cs * 0.5); }
+      else if (ch !== 'L') { g.fillRect(X + cs * 0.22, Z + cs * 0.22, cs * 0.56, cs * 0.56); g.strokeRect(X + cs * 0.22, Z + cs * 0.22, cs * 0.56, cs * 0.56); }
+    }
+    for (const lk of pr.lockers) {
+      const c = L.at(lk.inside.x, lk.inside.z); if (!c || !seen.has(c.cz * L.w + c.cx)) continue;
+      g.fillStyle = 'rgba(47, 111, 104, 0.85)'; const s2 = lk.kind === 'bed' ? cs * 0.22 : cs * 0.26;
+      g.fillRect(px(lk.inside.x) - s2 / 2, pz(lk.inside.z) - s2 / 2, s2, s2);
+    }
+    // names of the rooms you've been in
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const a of AREAS) {
+      if (!S.seenAreas.has(a.id)) continue;
+      const cx = ox + ((a.x0 + a.x1 + 1) / 2) * cs, cz = oz + ((a.z0 + a.z1 + 1) / 2) * cs, wide = (a.x1 - a.x0 + 1) >= (a.z1 - a.z0 + 1);
+      g.save(); g.translate(cx, cz); if (!wide) g.rotate(-Math.PI / 2);
+      g.font = `700 ${Math.max(9, Math.round(cs * 0.42))}px 'Courier Prime', 'Courier New', monospace`; g.fillStyle = ink(0.85);
+      g.fillText(a.name.toUpperCase(), 0, 0); g.restore();
+    }
+    // the objective
+    const fuseHunt = !!S.flags.panelSeen && !pr.fuse.taken, toPanel = !S.flags.panelSeen || P.hasFuse;
+    const ring = (x: number, z: number, r: number) => { g.save(); g.strokeStyle = 'rgba(179, 38, 30, 0.9)'; g.lineWidth = 2; g.setLineDash([5, 4]); g.beginPath(); g.arc(px(x), pz(z), r, 0, Math.PI * 2); g.stroke(); g.restore(); };
+    if (toPanel) ring(pr.panel.pos.x, pr.panel.pos.z, cs * 0.75);
+    else if (fuseHunt) { const a = AREAS.find(r => r.id === 'ward')!; ring((a.x0 + a.x1 + 1), (a.z0 + a.z1 + 1), cs * 2.6); }
+    // you
+    const fx = P.fwd.x, fz = P.fwd.z, l = Math.hypot(fx, fz) || 1, ux = fx / l, uz = fz / l, X = px(P.pos.x), Z = pz(P.pos.z), r = Math.max(7, cs * 0.34);
+    g.fillStyle = '#b3261e'; g.strokeStyle = 'rgba(255, 250, 240, 0.9)'; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(X + ux * r * 1.3, Z + uz * r * 1.3); g.lineTo(X - ux * r * 0.8 - uz * r * 0.8, Z - uz * r * 0.8 + ux * r * 0.8); g.lineTo(X - ux * r * 0.8 + uz * r * 0.8, Z - uz * r * 0.8 - ux * r * 0.8); g.closePath(); g.fill(); g.stroke();
+    g.font = `700 11px 'Courier Prime', 'Courier New', monospace`; g.fillStyle = '#b3261e'; g.textAlign = 'left';
+    g.fillText('USTED ESTÁ AQUÍ', X + r * 1.4, Z - r * 1.2);
+    // north and a scale bar
+    g.fillStyle = ink(0.8); g.textAlign = 'center'; g.font = `700 12px 'Courier Prime', monospace`;
+    g.fillText('N', W - 24, 18); g.beginPath(); g.moveTo(W - 24, 26); g.lineTo(W - 29, 38); g.lineTo(W - 19, 38); g.closePath(); g.fill();
+    g.fillRect(16, H - 14, cs * 2.5, 2); g.textAlign = 'left'; g.font = `400 10px 'Courier Prime', monospace`; g.fillText('5 m', 16 + cs * 2.5 + 6, H - 13);
+    $('map-close-key').textContent = this.device === 'pad' ? 'B' : this.device === 'touch' ? '' : `${keyName(this.game.settings.keys.map)} · Esc`;
+    this.show('map');
   }
 
   openSettings(back: () => void) {

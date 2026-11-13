@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { MAP, BARRED, DOOR_PLATES } from './content';
+import { MAP, BARRED, DOOR_PLATES, AREAS, LEAKS } from './content';
 import { doorLeaf } from './decor';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { Tex } from './textures';
-import { rng } from './textures';
+import type { Tex, Style } from './textures';
+import { rng, STYLES } from './textures';
 
 export const T = 2;          // tile size (m)
 export const H = 3;          // ceiling height (m)
@@ -74,6 +74,11 @@ export class Level {
   }
 
   inside(cx: number, cz: number) { return cx >= 0 && cz >= 0 && cx < this.w && cz < this.h; }
+  /** the finish a cell's floor and walls get: each part of the building has its own */
+  styleAt(cx: number, cz: number): Style {
+    const a = AREAS.find(r => cx >= r.x0 && cx <= r.x1 && cz >= r.z0 && cz <= r.z1);
+    return ({ reception: 'reception', breaker: 'breaker', corridor: 'corridor', north: 'corridor', ward: 'ward', dayroom: 'dayroom', linen: 'linen' } as Record<string, Style>)[a?.id ?? ''] ?? 'corridor';
+  }
   cell(cx: number, cz: number): Cell | undefined { return this.inside(cx, cz) ? this.cells[cz * this.w + cx] : undefined; }
   at(x: number, z: number) { return this.cell(Math.floor(x / T), Math.floor(z / T)); }
   center(cx: number, cz: number) { return { x: (cx + 0.5) * T, z: (cz + 0.5) * T }; }
@@ -91,8 +96,8 @@ export class Level {
 
   private buildGeometry(tex: Tex) {
     const R = rng(77);
-    const walls = tex.walls.map(() => new Geo());
-    const floors = tex.floors.map(() => new Geo());
+    const walls = Object.fromEntries(STYLES.map(st => [st, [new Geo(), new Geo()]])) as Record<Style, Geo[]>;
+    const floors = Object.fromEntries(STYLES.map(st => [st, [new Geo(), new Geo()]])) as Record<Style, Geo[]>;
     const ceil = new Geo();
     const exitG = new Geo();
     const lockG = new Geo();
@@ -101,13 +106,14 @@ export class Level {
     for (const c of this.cells) {
       if (c.kind === 'wall') continue;
       const x0 = c.cx * T, z0 = c.cz * T, x1 = x0 + T, z1 = z0 + T;
-      floors[R() < 0.65 ? 0 : 1].quad([[x0, 0, z1], [x1, 0, z1], [x1, 0, z0], [x0, 0, z0]], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+      const st = c.kind === 'door' ? 'corridor' : this.styleAt(c.cx, c.cz);
+      floors[st][R() < 0.5 ? 0 : 1].quad([[x0, 0, z1], [x1, 0, z1], [x1, 0, z0], [x0, 0, z0]], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
       ceil.quad([[x0, H, z0], [x1, H, z0], [x1, H, z1], [x0, H, z1]], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]); // door cells too: no black holes overhead
-      if (c.kind === 'door') { this.buildDoor(c, walls[0], tex); continue; }
+      if (c.kind === 'door') { this.buildDoor(c, (cx, cz) => walls[this.styleAt(cx, cz)][0], tex); continue; }
       for (const [dx, dz] of dirs) {
         const n = this.cell(c.cx + dx, c.cz + dz);
         if (!n || n.kind !== 'wall') continue;
-        const g = walls[Math.floor(R() * walls.length)]; // the double doors at X and = are real geometry now (dressing.ts)
+        const g = walls[st][R() < 0.5 ? 0 : 1]; // the double doors at X and = are real geometry now (dressing.ts)
         if (dz === -1) g.wall(x0, z0, x1, z0, 0, H, [0, 0, 1]);
         if (dz === 1) g.wall(x1, z1, x0, z1, 0, H, [0, 0, -1]);
         if (dx === -1) g.wall(x0, z1, x0, z0, 0, H, [1, 0, 0]);
@@ -122,9 +128,12 @@ export class Level {
       this.group.add(mesh);
       return mesh;
     };
-    walls.forEach((g, i) => add(g, lam(tex.walls[i], 2.2)));
-    floors.forEach((g, i) => add(g, lam(tex.floors[i], 1.4)));
-    add(ceil, lam(tex.ceiling)); // no bump on the ceiling: seen at a grazing angle overhead its derivatives degenerate into black patches
+    const gu = this.grimeUniforms();
+    for (const st of STYLES) for (let i = 0; i < 2; i++) {
+      if (walls[st][i].idx.length) add(walls[st][i], grime(lam(tex.walls[st][i], 2.2), 0, gu));
+      if (floors[st][i].idx.length) add(floors[st][i], grime(lam(tex.floors[st][i], 1.4), 1, gu));
+    }
+    add(ceil, grime(lam(tex.ceiling), 2, gu)); // no bump on the ceiling: seen at a grazing angle overhead its derivatives degenerate into black patches
     add(exitG, lam(tex.exitDoors));
     add(lockG, lam(tex.lockedDoors));
 
@@ -137,10 +146,36 @@ export class Level {
 
   private doorMat!: THREE.MeshLambertMaterial;
 
-  private buildDoor(c: Cell, g: Geo, _tex: Tex) {
+  // A blurred map of where the walls are (4 texels a tile): high along the skirting, higher still in corners.
+  // The surface shader uses it for the dirt that collects there; the leaks list stains ceiling, floor and walls.
+  private grimeUniforms() {
+    const S = 4, W = this.w * S, Hh = this.h * S;
+    let a = new Float32Array(W * Hh);
+    for (let z = 0; z < Hh; z++) for (let x = 0; x < W; x++) a[z * W + x] = this.isWall(Math.floor(x / S), Math.floor(z / S)) ? 1 : 0;
+    const blur = (src: Float32Array) => {
+      const t = new Float32Array(src.length), o = new Float32Array(src.length), r = 2;
+      for (let z = 0; z < Hh; z++) for (let x = 0; x < W; x++) { let s = 0; for (let k = -r; k <= r; k++) s += src[z * W + Math.min(W - 1, Math.max(0, x + k))]; t[z * W + x] = s / (2 * r + 1); }
+      for (let z = 0; z < Hh; z++) for (let x = 0; x < W; x++) { let s = 0; for (let k = -r; k <= r; k++) s += t[Math.min(Hh - 1, Math.max(0, z + k)) * W + x]; o[z * W + x] = s / (2 * r + 1); }
+      return o;
+    };
+    a = blur(blur(a));
+    const px = new Uint8Array(W * Hh * 4);
+    for (let i = 0; i < a.length; i++) { px[i * 4] = Math.round(a[i] * 255); px[i * 4 + 3] = 255; }
+    const tex = new THREE.DataTexture(px, W, Hh, THREE.RGBAFormat);
+    tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+    return {
+      uField: { value: tex }, uFieldSize: { value: new THREE.Vector2(this.w * T, this.h * T) },
+      uLeaks: { value: LEAKS.map(l => new THREE.Vector4(l.x, l.z, 0.75 + l.s * 0.55, 0)) },
+    };
+  }
+
+  private buildDoor(c: Cell, geoFor: (cx: number, cz: number) => Geo, _tex: Tex) {
     const x0 = c.cx * T, z0 = c.cz * T, x1 = x0 + T, z1 = z0 + T;
     const xc = x0 + T / 2, zc = z0 + T / 2, hw = DOOR_W / 2;
     const axis: 'x' | 'z' = this.isWall(c.cx - 1, c.cz) && this.isWall(c.cx + 1, c.cz) ? 'x' : 'z';
+    // each face of the frame takes the finish of the room it faces
+    const ga = axis === 'x' ? geoFor(c.cx, c.cz - 1) : geoFor(c.cx - 1, c.cz), gb = axis === 'x' ? geoFor(c.cx, c.cz + 1) : geoFor(c.cx + 1, c.cz);
+    let g = ga;
     const key = `${c.cx},${c.cz}`;
     const door: Door = {
       id: `door_${key}`, cx: c.cx, cz: c.cz, axis, open: c.ch === 'd', angle: c.ch === 'd' ? 1.45 : 0,
@@ -153,6 +188,7 @@ export class Level {
       // front and back faces: jambs plus lintel
       g.wall(x0, z0, xc - hw, z0, 0, H, [0, 0, -1], 0, 0.2); g.wall(xc + hw, z0, x1, z0, 0, H, [0, 0, -1], 0.8, 1);
       g.wall(xc - hw, z0, xc + hw, z0, DOOR_H, H, [0, 0, -1], 0.2, 0.8);
+      g = gb;
       g.wall(x1, z1, xc + hw, z1, 0, H, [0, 0, 1], 0, 0.2); g.wall(xc - hw, z1, x0, z1, 0, H, [0, 0, 1], 0.8, 1);
       g.wall(xc + hw, z1, xc - hw, z1, DOOR_H, H, [0, 0, 1], 0.2, 0.8);
       // reveal faces and soffit
@@ -163,6 +199,7 @@ export class Level {
       door.jambs = [{ x0, z0, x1, z1: zc - hw, tall: true }, { x0, z0: zc + hw, x1, z1, tall: true }];
       g.wall(x0, z1, x0, zc + hw, 0, H, [-1, 0, 0], 0, 0.2); g.wall(x0, zc - hw, x0, z0, 0, H, [-1, 0, 0], 0.8, 1);
       g.wall(x0, zc + hw, x0, zc - hw, DOOR_H, H, [-1, 0, 0], 0.2, 0.8);
+      g = gb;
       g.wall(x1, z0, x1, zc - hw, 0, H, [1, 0, 0], 0, 0.2); g.wall(x1, zc + hw, x1, z1, 0, H, [1, 0, 0], 0.8, 1);
       g.wall(x1, zc - hw, x1, zc + hw, DOOR_H, H, [1, 0, 0], 0.2, 0.8);
       g.wall(x1, zc - hw, x0, zc - hw, 0, DOOR_H, [0, 0, 1], 0, 1);
@@ -459,4 +496,96 @@ export class Level {
     }
     return cand.length ? cand[Math.floor(R() * cand.length)] : null;
   }
+}
+
+// ---- surface wear, in world space ---------------------------------------------------------------------
+// kind 0 walls, 1 floors, 2 ceiling. Macro blotchiness so no two metres match; soot under the ceiling and the
+// mop line at the skirting; dirt and mould where walls meet; sparse leak streaks; and the leaks: a stained
+// ring on the ceiling, the wall beside it wet, a damp halo round the puddle on the floor.
+const GRIME_HEAD = (n: number) => `
+uniform sampler2D uField; uniform vec2 uFieldSize; uniform vec4 uLeaks[${n}];
+varying vec3 vGW; varying vec3 vGN;
+float gh(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
+float gf(vec2 p) { return gn(p) * 0.55 + gn(p * 2.03 + 7.1) * 0.3 + gn(p * 4.07 + 3.3) * 0.15; }
+float gField(vec2 xz) { return texture2D(uField, xz / uFieldSize).r; }
+float gLeak(vec2 xz, out float rim) {
+  float k = 0.0; rim = 0.0;
+  for (int i = 0; i < ${n}; i++) {
+    vec4 L = uLeaks[i];
+    float d = length(xz - L.xy) / L.z + (gn(xz * 2.6 + float(i) * 7.0) - 0.5) * 0.28;
+    k = max(k, 1.0 - smoothstep(0.5, 1.0, d));
+    rim = max(rim, smoothstep(0.8, 0.94, d) * (1.0 - smoothstep(0.94, 1.06, d)));
+  }
+  return k;
+}
+`;
+const GRIME_BODY = [
+  // walls
+  `{
+    vec3 n = normalize(vGN);
+    bool xw = abs(n.x) > 0.5;
+    float along = xw ? vGW.z : vGW.x, plane = xw ? vGW.x : vGW.z, y = vGW.y;
+    float g = 0.84 + 0.3 * gf(vec2(along * 0.6, y * 0.6) + plane * 1.37);
+    g *= 1.0 - 0.34 * smoothstep(2.2, 3.0, y) * (0.45 + gf(vec2(along * 1.5, plane + y)));
+    g *= 1.0 - 0.42 * (1.0 - smoothstep(0.03, 0.36, y)) * (0.6 + 0.6 * gn(vec2(along * 4.0, plane)));
+    float f = gField(vGW.xz + n.xz * 0.3);
+    float corner = smoothstep(0.42, 0.72, f);
+    float mould = corner * smoothstep(0.38, 0.72, gf(vec2(along, y) * 2.2 + plane)) * clamp(smoothstep(1.7, 3.0, y) + 1.0 - smoothstep(0.0, 0.8, y), 0.0, 1.0);
+    g *= 1.0 - 0.38 * corner;
+    float cell = floor(along / 0.7), r = gh(vec2(cell, floor(plane * 2.0 + 0.5)));
+    float streak = 0.0, tide = 0.0;
+    if (r > 0.8) {
+      float cx = (cell + 0.25 + 0.5 * gh(vec2(r * 91.0, cell))) * 0.7;
+      float wd = 0.03 + 0.12 * gh(vec2(cell, r * 37.0)), ln = 0.4 + 1.8 * gh(vec2(cell * 1.7, r * 13.0));
+      float dx = abs(along - cx - (gn(vec2(y * 2.5, cell)) - 0.5) * wd * 1.4) / wd;
+      float top = smoothstep(3.0 - ln, 3.0 - ln * 0.45, y);
+      streak = (1.0 - smoothstep(0.5, 1.0, dx)) * top;
+      tide = smoothstep(0.62, 0.86, dx) * (1.0 - smoothstep(0.86, 1.0, dx)) * top;
+    }
+    float rim; float wet = gLeak(vGW.xz + n.xz * 0.15, rim);
+    wet *= smoothstep(0.4, 2.9, y) * (0.75 + 0.5 * gn(vec2(along * 3.0, y * 1.5)));
+    streak = max(streak, wet);
+    vec3 col = diffuseColor.rgb * g;
+    col = mix(col, col * vec3(0.58, 0.48, 0.32), clamp(streak * 0.7 + tide * 0.6, 0.0, 1.0));
+    col = mix(col, col * vec3(0.34, 0.4, 0.28), mould * 0.75);
+    diffuseColor.rgb = col;
+  }`,
+  // floors
+  `{
+    float g = 0.84 + 0.26 * gf(vGW.xz * 0.5);
+    g *= 1.0 - 0.4 * smoothstep(0.55, 0.82, gf(vGW.xz * 0.23 + 11.0));
+    float f = gField(vGW.xz);
+    g *= 1.0 - 0.6 * smoothstep(0.18, 0.56, f) * (0.7 + 0.3 * gn(vGW.xz * 3.0));
+    float rim; float wet = gLeak(vGW.xz, rim);
+    g *= 1.0 - 0.3 * wet - 0.3 * rim;
+    diffuseColor.rgb *= g;
+  }`,
+  // ceiling
+  `{
+    float g = 0.9 + 0.2 * gf(vGW.xz * 0.4);
+    vec2 tc = floor(vGW.xz / (2.0 / 3.0));
+    float hole = step(0.975, gh(tc + 17.0));
+    float rim; float wet = gLeak(vGW.xz, rim);
+    vec2 c2 = floor(vGW.xz / 2.0); float st = 0.0, sr = 0.0;
+    if (gh(c2 + 3.0) > 0.88) {
+      vec2 cc = (c2 + 0.3 + 0.4 * vec2(gh(c2 + 9.0), gh(c2 + 13.0))) * 2.0; float rad = 0.28 + 0.2 * gh(c2 + 21.0);
+      float d = length(vGW.xz - cc) / rad + (gn(vGW.xz * 4.0) - 0.5) * 0.3;
+      st = 1.0 - smoothstep(0.6, 1.0, d); sr = smoothstep(0.8, 0.95, d) * (1.0 - smoothstep(0.95, 1.08, d));
+    }
+    vec3 col = diffuseColor.rgb * g;
+    col = mix(col, col * vec3(0.72, 0.6, 0.42), max(wet, st * 0.7) * 0.65);
+    col = mix(col, col * vec3(0.42, 0.34, 0.22), max(rim, sr) * 0.75);
+    col *= 1.0 - hole * 0.88;
+    diffuseColor.rgb = col;
+  }`,
+];
+function grime<M extends THREE.Material>(m: M, kind: number, u: Record<string, { value: unknown }>): M {
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = 'varying vec3 vGW; varying vec3 vGN;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vGW = (modelMatrix * vec4(transformed, 1.0)).xyz; vGN = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = GRIME_HEAD((u.uLeaks.value as unknown[]).length) + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n' + GRIME_BODY[kind]);
+  };
+  m.customProgramCacheKey = () => `grime${kind}`;
+  return m;
 }

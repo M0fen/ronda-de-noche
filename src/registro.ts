@@ -21,6 +21,7 @@ const LABEL: Record<string, (d: any) => [string, string?]> = {
   safe: () => ['No lo encuentra', 'good'], chase: () => ['Ella lo persigue', 'bad'], lost: () => ['Lo pierde', 'good'],
   caught: d => [`Lo atrapa${d?.hid ? ' en el escondite' : ''}`, 'bad'], retry: () => ['Vuelve a intentar'], bottle: () => ['Lanza una botella'],
   gasp: () => ['Se le acaba el aliento', 'bad'], pause: () => ['Pausa'], resume: () => ['Sigue'], hidden: () => ['Cambia de pestaña'], leave: () => ['Cierra la página'],
+  map: () => ['Mira el plano'],
 };
 
 async function api(q = '') {

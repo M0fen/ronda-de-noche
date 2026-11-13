@@ -49,58 +49,146 @@ export function noise(g: CanvasRenderingContext2D, R: () => number, w: number, h
   g.putImageData(img, 0, 0);
 }
 
-// Wall: glazed green tiles to the dado rail, then nicotine-yellow paint, peeling and streaked.
-function wall(seed: number) {
-  const W = 128, Hh = 192; // 2 m x 3 m
+// ---- walls, floors and ceiling, one finish per part of the building ---------------------------------
+// The finishes are clean on purpose: wear, soot, leaks and corner grime are laid on in world space by the
+// level's surface shader, so no stain repeats every two metres and the damage follows the building (water
+// under the leaks, dirt along the skirting, mould in the corners).
+export type Style = 'ward' | 'corridor' | 'reception' | 'dayroom' | 'linen' | 'breaker';
+export const STYLES: Style[] = ['ward', 'corridor', 'reception', 'dayroom', 'linen', 'breaker'];
+const PXM = 64; // texels per metre on walls and floors
+
+function tileGrid(g: CanvasRenderingContext2D, R: () => number, x0: number, y0: number, w: number, h: number, tw: number, th: number, col: [number, number, number], vary: number, grout: string, crack = 0.04, offset = 0) {
+  for (let y = y0, row = 0; y < y0 + h; y += th, row++) for (let x = x0 - (row % 2) * offset; x < x0 + w; x += tw) {
+    const k = 1 - vary / 2 + R() * vary;
+    g.fillStyle = grout; g.fillRect(x, y, tw, th);
+    g.fillStyle = rgba(col[0] * k, col[1] * k, col[2] * k); g.fillRect(x, y, tw - 1, th - 1);
+    g.fillStyle = rgba(255, 255, 255, 0.07 + R() * 0.05); g.fillRect(x, y, tw - 1, 1); // glaze catching the light on the top edge
+    if (R() < crack) { g.strokeStyle = rgba(30, 30, 26, 0.7); g.lineWidth = 1; g.beginPath(); const sx = x + R() * tw; g.moveTo(sx, y); g.lineTo(sx + (R() - 0.5) * tw, y + th); g.stroke(); }
+  }
+}
+function paint(g: CanvasRenderingContext2D, R: () => number, y0: number, y1: number, col: [number, number, number], roller = 0.05) {
+  g.fillStyle = rgba(col[0], col[1], col[2]); g.fillRect(0, y0, 128, y1 - y0);
+  // roller laps: faint vertical bands, and a few drips where the coat was thick
+  for (let x = 0; x < 128; x += 6 + R() * 10) { const k = (R() - 0.5) * roller; g.fillStyle = k > 0 ? rgba(255, 250, 235, k) : rgba(40, 36, 28, -k); g.fillRect(x, y0, 4 + R() * 8, y1 - y0); }
+}
+function wallStyled(style: Style, seed: number) {
+  const W = 128, Hh = 192, R = rng(seed);
   const [c, g] = canvas(W, Hh);
-  const R = rng(seed);
-  const rail = Hh - Math.round(1.25 * 64);
-  g.fillStyle = '#b9ab7c'; g.fillRect(0, 0, W, rail);
-  // plaster showing through peeled paint
-  for (let i = 0; i < 7; i++) blotch(g, R, R() * W, R() * rail, 6 + R() * 14, [150, 145, 128], 0.5, 8);
-  for (let i = 0; i < 5; i++) blotch(g, R, R() * W, R() * rail * 0.6, 5 + R() * 8, [205, 196, 160], 0.35, 6);
-  // tiles
-  const tile = 10;
-  for (let y = rail; y < Hh; y += tile) for (let x = 0; x < W; x += tile) {
-    const k = 0.85 + R() * 0.25;
-    g.fillStyle = rgba(92 * k, 118 * k, 96 * k);
-    g.fillRect(x, y, tile - 1, tile - 1);
-    if (R() < 0.05) { g.fillStyle = rgba(40, 42, 36); g.fillRect(x, y, tile - 1, tile - 1); }
-    else if (R() < 0.08) { g.strokeStyle = rgba(30, 35, 30, 0.8); g.beginPath(); g.moveTo(x + R() * tile, y); g.lineTo(x + R() * tile, y + tile); g.stroke(); }
+  const y = (m: number) => Math.round(Hh - m * PXM); // canvas row for a height in metres
+  const skirting = (col: [number, number, number], hgt = 0.1) => { g.fillStyle = rgba(col[0], col[1], col[2]); g.fillRect(0, y(hgt), W, Hh - y(hgt)); g.fillStyle = rgba(255, 255, 255, 0.08); g.fillRect(0, y(hgt), W, 1); };
+  if (style === 'ward') {
+    paint(g, R, 0, y(1.25), [186, 174, 128]);
+    tileGrid(g, R, 0, y(1.25), W, y(0) - y(1.25), 10, 10, [92, 118, 96], 0.25, rgba(52, 60, 50), 0.04);
+    g.fillStyle = rgba(55, 60, 48); g.fillRect(0, y(1.25) - 3, W, 4);
+    skirting([70, 52, 36], 0.09);
+  } else if (style === 'corridor') {
+    // institutional two-tone: bottle-green oil paint to the hip, cream above, a dark line between
+    paint(g, R, 0, y(1.15), [200, 191, 157]);
+    paint(g, R, y(1.15), Hh, [58, 88, 79], 0.035);
+    for (let i = 0; i < 40; i++) { g.fillStyle = rgba(255, 255, 255, 0.025); g.fillRect(0, y(1.15) + R() * (y(0) - y(1.15)), W, 1); } // brush strokes in the gloss
+    g.fillStyle = rgba(30, 42, 37); g.fillRect(0, y(1.15) - 2, W, 3); g.fillStyle = rgba(230, 222, 190, 0.35); g.fillRect(0, y(1.15) - 3, W, 1);
+    skirting([38, 38, 34], 0.12);
+  } else if (style === 'reception') {
+    // wood panelling to the counter line, a pale striped paper above
+    paint(g, R, 0, y(1.1), [190, 175, 138], 0.02);
+    for (let x = 0; x < W; x += 16) { g.fillStyle = rgba(0, 0, 0, 0.035); g.fillRect(x, 0, 8, y(1.1)); }
+    for (let x = 0; x < W; x += 16) {
+      const k = 0.85 + R() * 0.25; g.fillStyle = rgba(108 * k, 74 * k, 46 * k); g.fillRect(x, y(1.1), 16, y(0) - y(1.1));
+      g.strokeStyle = rgba(60, 38, 22, 0.35); g.lineWidth = 1;
+      for (let l = 0; l < 4; l++) { g.beginPath(); let gx = x + 2 + R() * 12; g.moveTo(gx, y(1.1)); for (let yy = y(1.1); yy < Hh; yy += 8) { gx += (R() - 0.5) * 1.6; g.lineTo(gx, yy); } g.stroke(); }
+      g.fillStyle = rgba(28, 18, 10, 0.9); g.fillRect(x, y(1.1), 1, y(0) - y(1.1));
+    }
+    g.fillStyle = rgba(84, 56, 34); g.fillRect(0, y(1.1) - 5, W, 6); g.fillStyle = rgba(255, 230, 190, 0.18); g.fillRect(0, y(1.1) - 5, W, 1);
+    skirting([52, 34, 20], 0.1);
+  } else if (style === 'dayroom') {
+    // faded blue-grey wainscot, warm plaster above and a stencilled border the children's ward painted once
+    paint(g, R, 0, y(0.95), [200, 182, 156]);
+    paint(g, R, y(0.95), Hh, [104, 122, 128], 0.03);
+    g.fillStyle = rgba(205, 200, 184); g.fillRect(0, y(0.95) - 4, W, 5); g.fillStyle = rgba(0, 0, 0, 0.25); g.fillRect(0, y(0.95) + 1, W, 1);
+    const by = y(1.62);
+    for (let x = 4; x < W; x += 32) {
+      g.globalAlpha = 0.5 + R() * 0.2;
+      g.fillStyle = rgba(170, 72, 60); g.beginPath(); for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; g.moveTo(x + 8, by); g.ellipse(x + 8 + Math.cos(a) * 3.2, by + Math.sin(a) * 3.2, 2.4, 2.4, 0, 0, Math.PI * 2); } g.fill();
+      g.fillStyle = rgba(214, 180, 90); g.beginPath(); g.arc(x + 8, by, 1.6, 0, 7); g.fill();
+      g.fillStyle = rgba(70, 120, 112); g.fillRect(x + 18, by - 1, 8, 2); g.beginPath(); g.ellipse(x + 24, by - 3, 3, 1.6, -0.5, 0, 7); g.fill();
+      g.globalAlpha = 1;
+    }
+    g.fillStyle = rgba(150, 120, 96, 0.5); g.fillRect(0, by - 10, W, 1); g.fillRect(0, by + 9, W, 1);
+    skirting([58, 52, 46], 0.1);
+  } else if (style === 'linen') {
+    // white glazed tile to the door head: easy to scrub
+    paint(g, R, 0, y(2.05), [198, 194, 178]);
+    tileGrid(g, R, 0, y(2.05), W, y(0) - y(2.05), 10, 10, [214, 212, 200], 0.08, rgba(140, 138, 126), 0.03);
+    g.fillStyle = rgba(170, 168, 156); g.fillRect(0, y(2.05) - 2, W, 3);
+    skirting([150, 150, 140], 0.1);
+  } else {
+    // breaker room: painted block, stretcher bond, a darker band where shoulders and trolleys rub
+    tileGrid(g, R, 0, 0, W, Hh, 32, 13, [122, 130, 114], 0.1, rgba(84, 88, 78), 0, 16);
+    g.fillStyle = rgba(30, 34, 28, 0.12); g.fillRect(0, y(1.45), W, y(0.85) - y(1.45));
+    g.fillStyle = rgba(196, 160, 40, 0.75); g.fillRect(0, y(0.18), W, 6); // a painted kerb line
+    skirting([60, 62, 56], 0.08);
   }
-  g.fillStyle = rgba(55, 60, 48); g.fillRect(0, rail - 3, W, 4); // dado rail
-  g.fillStyle = rgba(70, 52, 36); g.fillRect(0, Hh - 6, W, 6); // skirting
-  // water streaks from the ceiling
-  for (let i = 0; i < 6; i++) {
-    const x = R() * W, len = 30 + R() * 110, wdt = 2 + R() * 6;
-    const gr = g.createLinearGradient(0, 0, 0, len);
-    gr.addColorStop(0, rgba(90, 70, 40, 0.5)); gr.addColorStop(1, rgba(90, 70, 40, 0));
-    g.fillStyle = gr; g.fillRect(x, 0, wdt, len);
-  }
-  // mould at ceiling and floor
-  for (let i = 0; i < 9; i++) blotch(g, R, R() * W, R() * 14, 4 + R() * 9, [32, 40, 26], 0.5, 10);
-  for (let i = 0; i < 6; i++) blotch(g, R, R() * W, Hh - R() * 18, 3 + R() * 8, [28, 34, 22], 0.5, 10);
-  noise(g, R, W, Hh, 18);
+  noise(g, R, W, Hh, 12);
   return toTex(c);
 }
 
-function floor(seed: number) {
-  const S = 128;
+function floorStyled(style: Style, seed: number) {
+  const S = 128, R = rng(seed);
   const [c, g] = canvas(S, S);
-  const R = rng(seed);
-  const q = S / 4;
-  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
-    const a = (x + y) % 2 === 0;
-    const k = 0.9 + R() * 0.15;
-    g.fillStyle = a ? rgba(122 * k, 116 * k, 96 * k) : rgba(74 * k, 84 * k, 74 * k);
-    g.fillRect(x * q, y * q, q, q);
+  if (style === 'ward') {
+    const q = S / 4;
+    for (let yy = 0; yy < 4; yy++) for (let x = 0; x < 4; x++) {
+      const a = (x + yy) % 2 === 0, k = 0.92 + R() * 0.12;
+      g.fillStyle = a ? rgba(122 * k, 116 * k, 96 * k) : rgba(74 * k, 84 * k, 74 * k); g.fillRect(x * q, yy * q, q, q);
+    }
+    g.strokeStyle = rgba(30, 30, 26, 0.6); g.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * q, 0); g.lineTo(i * q, S); g.stroke(); g.beginPath(); g.moveTo(0, i * q); g.lineTo(S, i * q); g.stroke(); }
+  } else if (style === 'corridor') {
+    // 30 cm vinyl tiles, marbled, quarter-turned
+    const n = 6, q = S / n;
+    for (let yy = 0; yy < n; yy++) for (let x = 0; x < n; x++) {
+      const k = 0.93 + R() * 0.1; g.fillStyle = rgba(142 * k, 134 * k, 118 * k); g.fillRect(x * q, yy * q, q, q);
+      const turn = (x + yy) % 2 === 0;
+      for (let m = 0; m < 6; m++) {
+        g.strokeStyle = R() < 0.5 ? rgba(96, 90, 78, 0.35) : rgba(190, 182, 164, 0.3); g.lineWidth = 1;
+        g.beginPath(); let px = x * q + R() * q, py = yy * q + R() * q; g.moveTo(px, py);
+        for (let k2 = 0; k2 < 5; k2++) { px += turn ? 3 + R() * 2 : (R() - 0.5) * 3; py += turn ? (R() - 0.5) * 3 : 3 + R() * 2; g.lineTo(Math.min(px, (x + 1) * q - 1), Math.min(py, (yy + 1) * q - 1)); }
+        g.stroke();
+      }
+    }
+    g.fillStyle = rgba(60, 56, 48, 0.55);
+    for (let i = 0; i <= n; i++) { g.fillRect(i * q, 0, 1, S); g.fillRect(0, i * q, S, 1); }
+  } else if (style === 'reception') {
+    // terrazzo with brass strips at every metre
+    g.fillStyle = rgba(138, 131, 117); g.fillRect(0, 0, S, S);
+    const chips: [number, number, number][] = [[222, 216, 202], [44, 42, 38], [124, 76, 54], [110, 106, 96], [182, 170, 140]];
+    for (let i = 0; i < 2600; i++) { const ch = chips[Math.floor(R() * chips.length)]; g.fillStyle = rgba(ch[0], ch[1], ch[2], 0.55 + R() * 0.45); const sz = R() < 0.85 ? 1 : 2; g.fillRect(R() * S, R() * S, sz, sz); }
+    g.fillStyle = rgba(150, 122, 64); g.fillRect(0, 0, S, 1); g.fillRect(0, 0, 1, S); g.fillRect(0, S / 2, S, 1); g.fillRect(S / 2, 0, 1, S);
+  } else if (style === 'dayroom') {
+    // worn strip parquet
+    const sh = 8;
+    for (let yy = 0; yy < S; yy += sh) {
+      let x = -Math.floor(R() * 40);
+      while (x < S) {
+        const len = 28 + Math.floor(R() * 36), k = 0.82 + R() * 0.3;
+        g.fillStyle = rgba(126 * k, 92 * k, 58 * k); g.fillRect(x, yy, len, sh);
+        g.strokeStyle = rgba(70, 46, 26, 0.3); g.lineWidth = 1;
+        for (let l = 0; l < 2; l++) { g.beginPath(); const gy = yy + 1 + R() * (sh - 2); g.moveTo(x, gy); g.bezierCurveTo(x + len * 0.3, gy + (R() - 0.5) * 3, x + len * 0.6, gy + (R() - 0.5) * 3, x + len, gy); g.stroke(); }
+        g.fillStyle = rgba(36, 24, 14, 0.8); g.fillRect(x, yy, 1, sh);
+        x += len;
+      }
+      g.fillStyle = rgba(36, 24, 14, 0.7); g.fillRect(0, yy, S, 1);
+    }
+  } else if (style === 'linen') {
+    tileGrid(g, R, 0, 0, S, S, 8, 8, [168, 166, 154], 0.08, rgba(104, 102, 94), 0.01);
+  } else {
+    // bare concrete, power-floated, a crack or two
+    g.fillStyle = rgba(116, 112, 104); g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 18; i++) blotch(g, R, R() * S, R() * S, 8 + R() * 18, R() < 0.5 ? [96, 92, 86] : [132, 128, 120], 0.12, 10);
+    g.strokeStyle = rgba(40, 38, 34, 0.55); g.lineWidth = 1;
+    for (let i = 0; i < 2; i++) { g.beginPath(); let px = R() * S, py = 0; g.moveTo(px, py); while (py < S) { px += (R() - 0.5) * 10; py += 4 + R() * 8; g.lineTo(px, py); } g.stroke(); }
   }
-  g.strokeStyle = rgba(30, 30, 26, 0.6); g.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * q, 0); g.lineTo(i * q, S); g.stroke(); g.beginPath(); g.moveTo(0, i * q); g.lineTo(S, i * q); g.stroke(); }
-  for (let i = 0; i < 10; i++) blotch(g, R, R() * S, R() * S, 4 + R() * 14, [40, 36, 26], 0.25, 10);
-  for (let i = 0; i < 26; i++) { g.strokeStyle = rgba(20, 20, 16, 0.25); g.beginPath(); const x = R() * S, y = R() * S; g.moveTo(x, y); g.lineTo(x + (R() - 0.5) * 30, y + (R() - 0.5) * 8); g.stroke(); }
-  if (seed % 2) for (let i = 0; i < 3; i++) blotch(g, R, R() * S, R() * S, 10 + R() * 12, [24, 26, 22], 0.35, 14);
-  noise(g, R, S, S, 16);
+  noise(g, R, S, S, 12);
   return toTex(c);
 }
 
@@ -110,18 +198,9 @@ function ceiling(seed: number) {
   const R = rng(seed);
   g.fillStyle = '#9d988a'; g.fillRect(0, 0, S, S);
   const p = S / 3;
-  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
-    if (R() < 0.08) { g.fillStyle = '#121210'; g.fillRect(x * p + 2, y * p + 2, p - 3, p - 3); continue; }
-    for (let i = 0; i < 40; i++) { g.fillStyle = rgba(70, 68, 60, 0.4); g.fillRect(x * p + R() * p, y * p + R() * p, 1, 1); }
-  }
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) for (let i = 0; i < 40; i++) { g.fillStyle = rgba(70, 68, 60, 0.4); g.fillRect(x * p + R() * p, y * p + R() * p, 1, 1); }
   g.strokeStyle = rgba(60, 58, 52); g.lineWidth = 2;
   for (let i = 0; i <= 3; i++) { g.beginPath(); g.moveTo(i * p, 0); g.lineTo(i * p, S); g.stroke(); g.beginPath(); g.moveTo(0, i * p); g.lineTo(S, i * p); g.stroke(); }
-  for (let i = 0; i < 3; i++) {
-    const x = R() * S, y = R() * S, r = 8 + R() * 22;
-    g.strokeStyle = rgba(110, 80, 40, 0.5); g.lineWidth = 2;
-    g.beginPath(); g.ellipse(x, y, r, r * 0.8, R(), 0, Math.PI * 2); g.stroke();
-    blotch(g, R, x, y, r * 0.8, [120, 95, 55], 0.18, 8);
-  }
   noise(g, R, S, S, 14);
   return toTex(c);
 }
@@ -508,8 +587,8 @@ function calendar() {
 export type Tex = ReturnType<typeof makeTextures>;
 export function makeTextures() {
   return {
-    walls: [wall(1), wall(2), wall(5)],
-    floors: [floor(3), floor(8)],
+    walls: Object.fromEntries(STYLES.map((st, i) => [st, [wallStyled(st, 11 + i * 7), wallStyled(st, 12 + i * 7)]])) as unknown as Record<Style, THREE.CanvasTexture[]>,
+    floors: Object.fromEntries(STYLES.map((st, i) => [st, [floorStyled(st, 31 + i * 5), floorStyled(st, 32 + i * 5)]])) as unknown as Record<Style, THREE.CanvasTexture[]>,
     ceiling: ceiling(4),
     locker: metal(11, [104, 118, 104]),
     cabinet: metal(23, [118, 116, 100]),

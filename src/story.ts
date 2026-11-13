@@ -24,20 +24,21 @@ const TUT: Record<string, { act: string; text: string }> = {
   locker: { act: 'interact', text: 'Algo viene. Escóndete en un casillero' },
   breath: { act: 'breath', text: 'Aguanta la respiración mientras esté cerca. La luz de la linterna se escapa por la rejilla. Suelta cuando vuelva a tararear' },
   journal: { act: 'journal', text: 'Diario: notas y objetivo' },
+  map: { act: 'map', text: 'Plano: dónde estás, lo que ya recorriste y dónde esconderte' },
   run: { act: 'sprint', text: 'Corre y rompe su línea de visión. Las puertas y las esquinas ayudan' },
 };
 
 export class Story {
   flags: Record<string, any> = {};
   objective = '';
-  area: Area | null = null; areaTime = 0; seenAreas = new Set<string>();
+  area: Area | null = null; areaTime = 0; seenAreas = new Set<string>(); visited = new Set<number>(); // cells walked, for the plan
   items: Interactable[] = [];
   checkpoint: Snapshot | null = null;
   tutDone = new Set<string>(); tutCur = ''; tutT = 0;
   moved = 0; private lastPos = { x: 0, z: 0 };
   timers: { t: number; fn: () => void }[] = [];
   hallT = 10; halluc: THREE.Sprite[] = []; hallLife = 0;
-  sightWait = 0;
+  sightWait = 0; private saves = 0;
 
   constructor(private game: Game) {
     this.buildItems();
@@ -47,7 +48,10 @@ export class Story {
 
   after(t: number, fn: () => void) { this.timers.push({ t, fn }); }
 
-  setObjective(text: string) { if (text !== this.objective) { T.ev('obj', text); T.progress({ obj: text }); } this.objective = text; this.game.ui.objective(text); }
+  setObjective(text: string) {
+    if (text !== this.objective) { T.ev('obj', text); T.progress({ obj: text }); if (this.objective && this.game.mode === 'play') this.game.audio.write(); }
+    this.objective = text; this.game.ui.objective(text);
+  }
 
   // ---- interactables -------------------------------------------------------------
   private buildItems() {
@@ -133,7 +137,7 @@ export class Story {
       if (n.def.id === 'porter') this.after(0.2, () => this.queue('crank'));
       this.after(0.5, () => this.queue('journal'));
     }
-    G.audio.paper();
+    G.audio.noteOpen();
     G.openNote(n);
   }
 
@@ -158,6 +162,7 @@ export class Story {
       this.setObjective('Encuentra los cuatro fusibles. Empieza por el Pabellón B, al norte por el pasillo principal. (0/4)');
       G.subtitle('Cuatro portafusibles vacíos: PABELLÓN, CIRUGÍA, ANFITEATRO, ARCHIVO.');
       this.save();
+      this.after(3, () => this.queue('map'));
     }
     if (P.hasFuse) {
       P.hasFuse = false; pn.installed++;
@@ -195,6 +200,7 @@ export class Story {
       objective: this.objective, lures: G.nurse.lures, hides: G.nurse.lockerHides,
     };
     G.ui.toast('Punto de control');
+    if (this.saves++ > 0) G.audio.stamp(); // not on the very first save, under the doors slamming
   }
 
   restore() {
@@ -275,6 +281,7 @@ export class Story {
 
     // areas
     const cell = L.at(P.pos.x, P.pos.z);
+    if (cell) this.visited.add(cell.cz * L.w + cell.cx);
     const ar = cell ? AREAS.find(a => cell.cx >= a.x0 && cell.cx <= a.x1 && cell.cz >= a.z0 && cell.cz <= a.z1) ?? null : null;
     if (ar !== this.area) {
       this.area = ar; this.areaTime = 0;
@@ -294,6 +301,7 @@ export class Story {
     if (this.tutCur === 'crouch' && this.tutT > 12) this.finish('crouch');
     if (this.tutCur === 'throw' && this.tutT > 15) this.finish('throw');
     if (this.tutCur === 'journal' && this.tutT > 6) this.finish('journal');
+    if (this.tutCur === 'map' && this.tutT > 9) this.finish('map');
     if (this.tutCur === 'run' && this.tutT > 6) this.finish('run');
     if (this.tutCur === 'crank' && this.tutT > 14) this.finish('crank');
     if (!this.tutDone.has('crank') && P.torch.battery < 40 && !this.tutCur) this.queue('crank');

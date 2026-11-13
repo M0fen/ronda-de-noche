@@ -14,7 +14,7 @@ const BEAT = 60 / 62;
 
 export class AudioSys {
   ctx: AudioContext | null = null;
-  private master!: GainNode; private muffle!: BiquadFilterNode;
+  private master!: GainNode; private muffle!: BiquadFilterNode; private world!: GainNode; private uiBus!: GainNode; private hoverT = 0;
   private music!: GainNode; private sfx!: GainNode; private voice!: GainNode; private amb!: GainNode; private heart!: GainNode;
   private verb!: ConvolverNode; private verbIn!: GainNode; private duck!: GainNode;
   private noise!: AudioBuffer;
@@ -41,7 +41,10 @@ export class AudioSys {
     comp.threshold.value = -16; comp.ratio.value = 4;
     this.master = ctx.createGain(); this.master.gain.value = 0.9;
     this.muffle = ctx.createBiquadFilter(); this.muffle.type = 'lowpass'; this.muffle.frequency.value = 20000;
-    this.master.connect(this.muffle).connect(comp).connect(ctx.destination);
+    // the world goes quiet under the pause menu; the interface bus stays live (and dry) beside it
+    this.world = ctx.createGain();
+    this.master.connect(this.muffle).connect(this.world).connect(comp).connect(ctx.destination);
+    this.uiBus = ctx.createGain(); this.uiBus.connect(comp);
     const bus = (to: AudioNode = this.master) => { const g = ctx.createGain(); g.connect(to); return g; };
     this.duck = bus(); // music and ambience step back under her voice
     this.music = bus(this.duck); this.sfx = bus(); this.voice = bus(); this.amb = bus(this.duck); this.heart = bus();
@@ -190,6 +193,7 @@ export class AudioSys {
   setVolumes(master: number, music: number, sfx: number) {
     if (!this.ctx) return;
     this.master.gain.value = master;
+    this.uiBus.gain.value = master * (0.35 + 0.65 * sfx);
     this.music.gain.value = music * 0.9;
     this.sfx.gain.value = sfx; this.voice.gain.value = sfx; this.amb.gain.value = sfx * 0.8;
   }
@@ -258,11 +262,24 @@ export class AudioSys {
   }
 
   // ---- one-shots -------------------------------------------------------
-  step(pos?: V3, occl = 0, weight = 1, nurse = false) {
+  // a footstep; yours change with what you walk on (the floors differ room to room now)
+  step(pos?: V3, occl = 0, weight = 1, nurse = false, surf = '') {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime, o = nurse ? this.nurseIn : this.out(pos, occl);
-    this.burst(o, t, 0.07, 'lowpass', nurse ? 900 : 1400, 0.7, 0.22 * weight);
-    this.tone(o, t, 'sine', nurse ? 95 : 120, 50, 0.08, 0.25 * weight);
+    const t = this.ctx.currentTime, o = nurse ? this.nurseIn : this.out(pos, occl), w = weight;
+    if (nurse || !surf || surf === 'ward') { this.burst(o, t, 0.07, 'lowpass', nurse ? 900 : 1400, 0.7, 0.22 * w); this.tone(o, t, 'sine', nurse ? 95 : 120, 50, 0.08, 0.25 * w); return; }
+    if (surf === 'reception') { // terrazzo: a hard heel tap
+      this.burst(o, t, 0.05, 'lowpass', 2100, 0.7, 0.2 * w); this.burst(o, t, 0.012, 'bandpass', 3100, 2.2, 0.16 * w, 0.0006); this.tone(o, t, 'sine', 130, 60, 0.06, 0.2 * w);
+    } else if (surf === 'corridor') { // vinyl: soft, the odd squeak of a sole
+      this.burst(o, t, 0.08, 'lowpass', 1150, 0.7, 0.2 * w); this.tone(o, t, 'sine', 115, 50, 0.08, 0.22 * w);
+      if (Math.random() < 0.12) this.tone(o, t + 0.03, 'triangle', 2300 + Math.random() * 600, 2600, 0.05, 0.02 * w, 0.01);
+    } else if (surf === 'dayroom') { // boards: a hollow thump, and now and then one gives
+      this.burst(o, t, 0.09, 'bandpass', 520, 1.4, 0.24 * w); this.tone(o, t, 'sine', 92, 48, 0.12, 0.3 * w);
+      if (Math.random() < 0.14) { const c = this.tone(o, t + 0.04, 'sawtooth', 170, 230, 0.22, 0.018 * w, 0.03); c.detune.value = Math.random() * 40; }
+    } else if (surf === 'linen') { // small tiles: a bright tap
+      this.burst(o, t, 0.05, 'lowpass', 2300, 0.7, 0.18 * w); this.burst(o, t, 0.01, 'bandpass', 2400, 2.5, 0.12 * w, 0.0006); this.tone(o, t, 'sine', 140, 60, 0.05, 0.18 * w);
+    } else { // concrete: grit under the sole
+      this.burst(o, t, 0.07, 'lowpass', 1050, 0.7, 0.22 * w); this.burst(o, t + 0.01, 0.04, 'highpass', 3200, 0.8, 0.05 * w); this.tone(o, t, 'sine', 110, 48, 0.07, 0.24 * w);
+    }
   }
   crunch() { if (!this.ctx) return; const t = this.ctx.currentTime; for (let i = 0; i < 5; i++) this.burst(this.sfx, t + i * 0.012, 0.03, 'bandpass', 3000 + Math.random() * 4000, 4, 0.12); }
   glass(pos: V3, occl: number) {
@@ -307,14 +324,19 @@ export class AudioSys {
     this.tone(o, t, 'sine', f, f * 0.55, 0.07, 0.12, 0.002);
     this.tone(o, t + 0.05, 'sine', f * 1.4, f * 0.9, 0.05, 0.04, 0.002);
   }
-  click() { if (!this.ctx) return; this.burst(this.sfx, this.ctx.currentTime, 0.02, 'highpass', 3000, 1, 0.25); }
+  click() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.burst(this.sfx, t, 0.006, 'bandpass', 3100, 1.8, 0.28, 0.0004); this.tone(this.sfx, t, 'sine', 1750, 1500, 0.018, 0.05, 0.0005); this.tone(this.sfx, t, 'triangle', 260, 200, 0.03, 0.09, 0.001);
+    this.burst(this.sfx, t + 0.045, 0.004, 'bandpass', 2400, 1.8, 0.12, 0.0004); // the switch settling
+  }
   crank() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     for (let i = 0; i < 4; i++) this.burst(this.sfx, t + i * 0.045, 0.02, 'bandpass', 2400 + Math.random() * 800, 6, 0.32);
     this.tone(this.sfx, t, 'sawtooth', 180, 220, 0.15, 0.05);
   }
-  pickup() { if (!this.ctx) return; const t = this.ctx.currentTime; this.tone(this.sfx, t, 'triangle', 1600, 1200, 0.06, 0.06); this.burst(this.sfx, t, 0.04, 'bandpass', 3500, 3, 0.1); }
+  pickup() { if (!this.ctx || this.ui('bottle_pick', 0.55)) return; const t = this.ctx.currentTime; this.tone(this.sfx, t, 'triangle', 1600, 1200, 0.06, 0.06); this.burst(this.sfx, t, 0.04, 'bandpass', 3500, 3, 0.1); }
   paper() { if (!this.ctx) return; const t = this.ctx.currentTime; for (let i = 0; i < 3; i++) this.burst(this.sfx, t + i * 0.06, 0.08, 'bandpass', 3000 + i * 800, 1.5, 0.12, 0.02); }
   spark(pos?: V3) {
     if (!this.ctx) return;
@@ -569,7 +591,54 @@ export class AudioSys {
     if (!slow) { this.ambient(t, listener); this.whispers(t, listener); }
   }
 
-  suspend(on: boolean) { if (!this.ctx) return; on ? this.ctx.suspend() : this.ctx.resume(); }
+  // pause: the world fades out but the context keeps running, so the menu still ticks
+  suspend(on: boolean) { if (!this.ctx) return; this.ctx.resume(); this.world.gain.setTargetAtTime(on ? 0 : 1, this.ctx.currentTime, on ? 0.05 : 0.12); }
+
+  // ---- interface ---------------------------------------------------------
+  /** a dry interface sample (menus, notes, the map); also plays under the pause menu */
+  ui(name: string, gain = 1, rate = 1) { if (!this.ctx) return false; return this.sample(name, this.uiBus, this.ctx.currentTime, gain, rate, 0.04); }
+  /** moving between menu items: a soft bakelite tick */
+  hover() {
+    if (!this.ctx) return;
+    const now = performance.now(); if (now - this.hoverT < 55) return; this.hoverT = now;
+    const t = this.ctx.currentTime, b = this.uiBus;
+    this.burst(b, t, 0.005, 'bandpass', 2700 + Math.random() * 300, 1.4, 0.13, 0.0004);
+    this.tone(b, t, 'sine', 1320, 1150, 0.022, 0.035, 0.0006);
+    this.tone(b, t, 'triangle', 330, 270, 0.02, 0.05, 0.0008);
+  }
+  /** confirming a menu choice: a heavy switch */
+  select() {
+    if (!this.ctx || this.ui('ui_select', 0.5)) return;
+    const t = this.ctx.currentTime, b = this.uiBus;
+    this.burst(b, t, 0.012, 'bandpass', 1900, 1.2, 0.3, 0.0005); this.tone(b, t, 'triangle', 240, 150, 0.06, 0.12, 0.001);
+  }
+  /** the checkpoint: a rubber stamp coming down on a form */
+  stamp() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, b = this.uiBus;
+    this.tone(b, t, 'sine', 105, 42, 0.13, 0.42, 0.0015);
+    this.burst(b, t, 0.045, 'bandpass', 640, 0.8, 0.32, 0.0008);
+    this.burst(b, t + 0.003, 0.018, 'highpass', 2600, 0.7, 0.1, 0.0004);
+    this.burst(b, t + 0.15, 0.06, 'bandpass', 3400, 2.2, 0.04, 0.012); // the rubber peeling off the ink
+  }
+  /** a line added to the objective: pencil on the clipboard */
+  write() { if (!this.ctx || this.ui('ui_write', 0.42)) return; for (let i = 0; i < 4; i++) this.burst(this.uiBus, this.ctx.currentTime + i * 0.09, 0.07, 'bandpass', 4200, 2.5, 0.05, 0.01); }
+  noteOpen() { if (!this.ui('paper_open', 0.6)) this.paper(); }
+  noteClose() { if (!this.ui('paper_close', 0.5)) this.paper(); }
+  mapOpen() { if (!this.ui('map_open', 0.55)) this.paper(); }
+  mapClose() { if (!this.ui('map_close', 0.45)) this.paper(); }
+  /** the torch giving out (or nearly): a flickering filament buzz */
+  torchDie(gain = 0.5) { if (!this.ctx || this.ui('torch_die', gain)) return; this.tone(this.sfx, this.ctx.currentTime, 'sawtooth', 100, 100, 0.5, 0.05 * gain); }
+  /** a low body-blow under the music: she is suddenly much closer */
+  thud(gain = 0.5) { if (!this.ctx) return; const t = this.ctx.currentTime; this.tone(this.uiBus, t, 'sine', 62, 34, 0.55, gain, 0.004); this.burst(this.uiBus, t, 0.18, 'lowpass', 220, 0.7, gain * 0.5, 0.003); }
+  /** sliding under a bed, and back out */
+  bed(out: boolean, pos?: V3) {
+    if (!this.ctx) return;
+    if (this.sampleAt(out ? 'bed_out' : 'bed_in', pos, 0, out ? 0.55 : 0.6, 0.95)) return;
+    const t = this.ctx.currentTime, b = this.burst(this.sfx, t, 0.6, 'bandpass', 900, 0.6, 0.18, 0.05); b.f.frequency.linearRampToValueAtTime(500, t + 0.6);
+  }
+  /** her key ring, sorting for the right one */
+  keys(pos: V3, occl = 0) { if (!this.ctx) return; if (!this.sampleAt('keys', pos, occl, 0.7)) for (let i = 0; i < 5; i++) this.tone(this.out(pos, occl), this.ctx.currentTime + i * 0.05 + Math.random() * 0.03, 'sine', 3800 + Math.random() * 2400, 3600, 0.12, 0.03, 0.001); }
 
   // ---- set dressing ------------------------------------------------------
   // A music box: each tine a plucked sine with the comb's bright, fast-dying overtone, a little out

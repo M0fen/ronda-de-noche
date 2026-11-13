@@ -29,7 +29,7 @@ export class Player {
   hasFuse = false; ghost = false;
   crouchToggle = false; crouchHeldT = 0; crouchMomentary = false; stepPhase = 0; stepCount = 0; roll = 0; fovKick = 0; bumpT = 0;
   bounce: THREE.PointLight; aimD = 6;
-  stepAcc = 0; crankT = 0; darkT = 0; shake = 0;
+  stepAcc = 0; crankT = 0; darkT = 0; shake = 0; lowWarned = false; dipT = 0;
   focus: any = null;
   private bottleMesh: THREE.Object3D;
 
@@ -101,6 +101,7 @@ export class Player {
     if (masked) r *= 0.5;
     this.game.noises.push({ x, z, r, loud, kind, ...extra });
     this.game.debugNoise(x, z, r);
+    if (kind !== 'bottle' && kind !== 'throw') this.game.ui.noiseEvent(r, loud, x, z); // the ring round the crosshair
   }
 
   update(dt: number, a: Act) {
@@ -153,7 +154,7 @@ export class Player {
       const cell = L.at(this.pos.x, this.pos.z);
       const glass = cell && G.props.glass.has(`${cell.cx},${cell.cz}`);
       if (glass) { A.crunch(); this.noise(this.crouch ? 3.5 : 9, this.crouch ? 0.5 : 0.9, 'glass'); G.subtitleThrottled('crunch', 'Cruje vidrio bajo tus pies', undefined, 6); }
-      if (!this.crouch) { A.step(undefined, 0, this.sprinting ? 1.3 : 0.75); this.noise(this.sprinting ? 11 : 3.5, this.sprinting ? 1 : 0.5, 'step'); }
+      if (!this.crouch) { const fc = G.level.at(this.pos.x, this.pos.z); A.step(undefined, 0, this.sprinting ? 1.3 : 0.75, false, fc ? G.level.styleAt(fc.cx, fc.cz) : ''); this.noise(this.sprinting ? 11 : 3.5, this.sprinting ? 1 : 0.5, 'step'); }
       else A.step(undefined, 0, 0.18);
     }
     const sp = Math.hypot(this.vel.x, this.vel.z);
@@ -187,11 +188,15 @@ export class Player {
       if (this.crankT <= 0) { this.crankT = 0.32; A.crank(); this.noise(13, 0.9, 'crank'); G.subtitleThrottled('crank', 'Zumba la manivela', undefined, 8); G.input.rumble(0, 0.15, 60); }
       G.story.tut('crank');
     }
-    if (t.on) { t.battery -= dt * LEVELS[t.level].drain; if (t.battery <= 0) { t.battery = 0; t.on = false; A.click(); G.subtitle('Se apaga la linterna.'); } }
+    if (t.on) { t.battery -= dt * LEVELS[t.level].drain; if (t.battery <= 0) { t.battery = 0; t.on = false; A.click(); A.torchDie(0.55); G.subtitle('Se apaga la linterna.'); } }
+    // the first warning: the bulb browns out for a moment as the charge drops under 15
+    if (t.on && t.battery < 15 && !this.lowWarned) { this.lowWarned = true; this.dipT = 0.5; A.torchDie(0.22); G.subtitle('La linterna parpadea: poca carga'); }
+    if (t.battery > 25) this.lowWarned = false;
     // flicker: low battery, cranking, or her presence (smooth, never strobing)
     const tm = G.time;
     let f = 1;
     if (t.battery < 15) f *= 0.45 + 0.55 * (t.battery / 15) * (0.75 + 0.25 * Math.sin(tm * 6.1));
+    if (this.dipT > 0) { this.dipT -= dt; f *= Math.random() < 0.5 ? 0.15 : 0.6; }
     if (t.cranking) f *= 0.8 + 0.2 * Math.sin(tm * 18);
     const nd = G.nurse.dist;
     if (nd < 9 && !G.settings.reduced) f *= 1 - (1 - nd / 9) * 0.55 * Math.max(0, Math.sin(tm * 2.7) * Math.sin(tm * 4.3 + 1));
@@ -300,8 +305,8 @@ export class Player {
     this.lockFrom = { x: this.pos.x, z: this.pos.z, yaw: this.yaw, pitch: this.pitch };
     this.crouch = false; this.aiming = false; this.arc.visible = this.marker.visible = false;
     l.doorTarget = 1.25;
-    this.game.audio.locker();
-    this.noise(5, 0.5, 'locker');
+    if (l.kind === 'bed') this.game.audio.bed(false); else this.game.audio.locker();
+    this.noise(l.kind === 'bed' ? 3.5 : 5, 0.5, 'locker');
     this.game.nurse.onPlayerEnteredLocker(l);
     this.game.ui.tutorialHint = true;
     this.game.story.tut('locker-in');
@@ -313,8 +318,8 @@ export class Player {
     this.lockT = 0; this.lockDir = -1;
     this.lockFrom = { x: l.inside.x, z: l.inside.z, yaw: this.yaw, pitch: this.pitch };
     l.doorTarget = 1.25;
-    this.game.audio.locker();
-    this.noise(5, 0.5, 'locker');
+    if (l.kind === 'bed') this.game.audio.bed(true); else this.game.audio.locker();
+    this.noise(l.kind === 'bed' ? 3.5 : 5, 0.5, 'locker');
   }
 
   private updateLocker(dt: number, a: Act) {

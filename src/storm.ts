@@ -21,6 +21,8 @@ export class Storm {
   private hemiBase = 0.32;
   private v = new THREE.Vector3();
   onFlash: ((k: number) => void) | null = null;
+  moonK = 1;               // the title dims the moonlit spill while the torch is dead
+  auto = true;             // random strikes (the title schedules its own)
 
   constructor(private G: Game) {
     const glass = G.props.windowGlass;
@@ -57,7 +59,7 @@ export class Storm {
   update(dt: number, title = false) {
     const G = this.G;
     this.next -= dt;
-    if (this.next <= 0) { this.strike(); this.next = title ? 7 + Math.random() * 8 : 24 + Math.random() * 40; }
+    if (this.next <= 0) { if (this.auto) this.strike(); this.next = title ? 7 + Math.random() * 8 : 24 + Math.random() * 40; }
     if (this.masking > 0) this.masking -= dt;
     // the strobe envelope
     let f = 0;
@@ -78,7 +80,7 @@ export class Storm {
     if (G.props.poolMat) G.props.poolMat.opacity = Math.min(1, 0.5 + f * 1.2);
     // cold light into the two nearest rooms with windows
     const near = this.nearestWindows();
-    const moon = title ? 1.1 : 0; // on the title the windows also spill a little cold moonlight
+    const moon = title ? 1.1 * this.moonK : 0; // on the title the windows also spill a little cold moonlight
     this.lights.forEach((l, i) => {
       const n = near[i];
       if (!n || n.d > 22 || (f <= 0.001 && !moon)) { l.intensity = 0; return; }

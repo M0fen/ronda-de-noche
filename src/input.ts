@@ -4,7 +4,7 @@ export type Device = 'kbm' | 'pad' | 'touch';
 export interface Act {
   mx: number; mz: number; lx: number; ly: number;
   sprint: boolean; crank: boolean; aim: boolean; breath: boolean; crouchHold: boolean;
-  crouch: boolean; interact: boolean; torch: boolean; beam: number; throw: boolean; journal: boolean; pause: boolean; any: boolean;
+  crouch: boolean; interact: boolean; torch: boolean; beam: number; throw: boolean; journal: boolean; map: boolean; pause: boolean; any: boolean;
 }
 
 const HELD = ['forward', 'back', 'left', 'right', 'sprint', 'crank', 'breath', 'aim'];
@@ -132,7 +132,7 @@ export class Input {
       mx: 0, mz: 0, lx: 0, ly: 0,
       sprint: this.held.has('sprint'), crank: this.held.has('crank'), aim: this.held.has('aim'), breath: this.held.has('breath'), crouchHold: this.held.has('crouchHold'),
       crouch: this.edge.has('crouch'), interact: this.edge.has('interact'), torch: this.edge.has('torch'),
-      beam: Math.sign(this.wheel) + (this.edge.has('beam') ? 1 : 0), throw: this.edge.has('throw'), journal: this.edge.has('journal'),
+      beam: Math.sign(this.wheel) + (this.edge.has('beam') ? 1 : 0), throw: this.edge.has('throw'), journal: this.edge.has('journal'), map: this.edge.has('map'),
       pause: this.edge.has('pause'), any: this.edge.has('any') || this.edge.has('interact') || this.edge.has('throw'),
     };
     if (this.held.has('forward')) a.mz += 1;
@@ -184,6 +184,7 @@ export class Input {
       if (b[6]) a.aim = true;
       if (pressed(7)) a.throw = true;
       if (pressed(8)) a.journal = true;
+      if (pressed(15) || pressed(11)) a.map = true;
       if (pressed(9)) a.pause = true;
       if (b[10]) a.sprint = true;
       if (pressed(12)) a.beam += 1;

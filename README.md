@@ -24,7 +24,9 @@ Teclas: 1–5 teletransporte, G fantasma, N congelar a la Enfermera, M ocultar e
 | Manivela | Mantener R | Mantener X | Mantener Manivela |
 | Apuntar · lanzar botella | Mantener clic der. · clic izq. | Mantener LT · RT | Mantener Lanzar y soltar |
 | Aguantar la respiración | Mantener Espacio | Mantener RB | Mantener Aliento |
-| Diario · pausa | Tab · Esc | View · Start | Íconos arriba a la derecha |
+| Diario · plano · pausa | Tab · M · Esc | View · cruceta → · Start | Íconos arriba a la derecha (el plano, desde el diario) |
+
+El plano de evacuación muestra todo el piso tenue, entinta las salas que ya recorriste con su nombre y sus escondites, marca el objetivo con un círculo y a ti con una flecha. Cada ruido que haces dibuja un anillo alrededor de la mira (más grande cuanto más lejos se oye; rojo si ella estaba lo bastante cerca para oírlo) y un ojo arriba se abre a medida que ella te nota.
 
 Al caminar contra una puerta cerrada, se abre sola, siempre hacia el lado contrario a quien la empuja (de golpe si vas corriendo: hace ruido). El haz de la linterna converge en lo que tienes en la mira y se ajusta a la distancia, para que lo que examinas de cerca no se queme.
 
@@ -36,7 +38,7 @@ Casi todo se puede mirar de cerca con Usar: cuadros, camas, manos y escritos en 
 
 ## Tormenta y canción
 
-Afuera llueve sobre una ciudad apagada por el racionamiento. Los relámpagos (varias descargas, un rayo dibujado en el cielo de las ventanas) iluminan los cuartos con ventanas y el trueno llega con el retraso que toca; mientras retumba, tus pasos y la manivela se oyen la mitad. En el título los rayos caen más seguido y tu linterna ya la encontró: la Jefa, quieta en el Pabellón B, a veces gira la cabeza hacia ti; los ojos le brillan sobre el tapabocas. El agua escurre por los vidrios (gotas que bajan, se detienen y siguen) y, si están los archivos, la lluvia y los truenos son grabados. La canción del título (`src/sfx/theme.mp3`, compuesta y renderizada por código) es la misma melodía que ella tararea —transcrita de su grabación— en una cajita de música; en la segunda vuelta entra su voz. El primer toque o clic en la pantalla de entrada desbloquea el sonido.
+Afuera llueve sobre una ciudad apagada por el racionamiento. Los relámpagos (varias descargas, un rayo dibujado en el cielo de las ventanas) iluminan los cuartos con ventanas y el trueno llega con el retraso que toca; mientras retumba, tus pasos y la manivela se oyen la mitad. En el título ella nunca se mueve mientras la ves: tu linterna está fallando y cada vez que se apaga, al volver la luz la Jefa está más cerca —en la oscuridad solo le brillan los ojos—, hasta quedar a un brazo de distancia; la siguiente vez el pabellón está vacío y el haz la busca, y algún relámpago la muestra donde no debería estar. Si pasas el cursor por «Empezar la noche», ladea la cabeza. El agua escurre por los vidrios (gotas que bajan, se detienen y siguen) y, si están los archivos, la lluvia y los truenos son grabados. La canción del título (`src/sfx/theme.mp3`, compuesta y renderizada por código) es la misma melodía que ella tararea —transcrita de su grabación— en una cajita de música; en la segunda vuelta entra su voz. El primer toque o clic en la pantalla de entrada desbloquea el sonido.
 
 ## Contrato del modelo de la Enfermera
 
@@ -76,10 +78,12 @@ Todo el audio se sintetiza, pero cualquier archivo `src/sfx/<nombre>.mp3` se emp
 | `breath` | Jadeo al soltar el aliento |
 | `sheet` | La sábana al atraparte |
 | `ambience` | Fondo del hospital, en bucle |
+| `ui_select`, `ui_write`, `paper_open`, `paper_close`, `map_open`, `map_close` | Interfaz: elegir en un menú, el lápiz al cambiar el objetivo, abrir y dejar notas y el diario, desdoblar y doblar el plano (el tic al pasar por los menús y el sello del punto de control son sintéticos) |
+| `bottle_pick`, `torch_die`, `bed_in`, `bed_out`, `keys` | Recoger una botella, la linterna que se apaga o avisa con poca carga, meterse y salir de debajo de la cama, el llavero de ella cuando se asoma a un casillero |
 | `theme` | Canción del título (bucle de 55,94 s con la cola superpuesta) |
 | `v_cama`, `v_visitas`, `v_dormir`, `v_ahi`, `v_quieto`, `v_aquiesta` | Su voz: «Shhh… ¿Qué haces fuera de la cama?», «Las visitas eran hasta las ocho», «Ya es hora de dormir», «Yo sé que estás ahí», «No te muevas…», «Ahí estás». Suenan desde donde está ella (con cadena espectral: doble fantasma, respiración en reversa y eco en tu cabeza), con subtítulo |
 
-Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería de Splice de Carlos; la voz es ElevenLabs (voz «Isabella») generada en Higgsfield.
+Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería de Splice de Carlos; la voz es ElevenLabs (voz «Isabella») generada en Higgsfield; los de interfaz son Mirelo (Higgsfield), recortados y limpiados.
 
 ## Demo en Vercel y registro de partidas
 
@@ -89,7 +93,7 @@ Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería 
 2. En el proyecto: **Storage → Create Database → Neon** (plan gratis) → **Connect**. Eso pone `DATABASE_URL`; las tablas se crean solas en la primera partida.
 3. En **Settings → Environment Variables** crea `REPORT_KEY` con una clave tuya (el repositorio es público: la clave no está en el código). Después, **Redeploy**.
 
-**Qué se guarda** (solo en la versión publicada en un dominio propio; en claude.ai no se pide nombre ni se manda nada): el nombre o apodo que el jugador escribe en la portada; cada acción con su segundo (entra, objetivos, notas, fusible, se esconde y en qué, ella revisa el escondite, lo persigue, lo pierde, lo atrapa, reintenta, botellas, aliento, pausa, sale de la página); el recorrido —él y ella, dos veces por segundo, y si estaba escondido—; y el progreso (hasta dónde llegó, tiempo, veces atrapado, escondites, notas, si terminó). Se manda en lotes cada 8 s y al cerrar la pestaña (`sendBeacon`). La portada avisa que se guarda.
+**Qué se guarda** (solo en la versión publicada en un dominio propio; en claude.ai no se pide nombre ni se manda nada): el nombre o apodo que el jugador escribe en la portada (opcional: sin nombre queda como «Anónimo»); cada acción con su segundo (entra, objetivos, notas, fusible, se esconde y en qué, ella revisa el escondite, lo persigue, lo pierde, lo atrapa, reintenta, botellas, aliento, pausa, sale de la página); el recorrido —él y ella, dos veces por segundo, y si estaba escondido—; y el progreso (hasta dónde llegó, tiempo, veces atrapado, escondites, notas, si terminó). Se manda en lotes cada 8 s y al cerrar la pestaña (`sendBeacon`). La portada avisa que se guarda.
 
 **Ver el registro:** `https://TU-PROYECTO.vercel.app/registro?k=TU_REPORT_KEY` — totales, la tabla de partidas y, al tocar una, su recorrido sobre el plano del hospital (repetible a 4×) y la lista de lo que hizo.
 
@@ -105,7 +109,8 @@ Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería 
 | Archivo | Qué hace |
 |---|---|
 | `src/content.ts` | Mapa del hospital (ASCII), notas, letreros, áreas, rutas de patrulla |
-| `src/level.ts` | Geometría, colisiones, línea de visión, oclusión del sonido, A* |
+| `src/level.ts` | Geometría, colisiones, línea de visión, oclusión del sonido, A*. Cada parte del edificio tiene su acabado, y el desgaste va en espacio de mundo (shader): manchas que nunca se repiten, mugre en zócalos y esquinas, chorreones, y las goteras (`LEAKS` en `content.ts`) que manchan techo, pared y piso en el mismo sitio |
+| `src/sigil.ts` | El sigilo bordado en la cofia (donde iba la cruz) y en el pecho: calcomanías recortadas de la propia malla de la ropa, con sus pesos de piel |
 | `src/props.ts` | Muebles, escondites (casilleros con rejillas reales y el hueco bajo las camas), lámparas, luces de emergencia, tablero, fusible, ambientación (ventanas, cortinas con física de resortes, charcos, goteras, escombros) |
 | `src/decor.ts` | Arte dibujado por código: manos, rasguños, escritos, manchas, afiches, hojas de puerta, cuadros y sus versiones cambiadas |
 | `src/dressing.ts` | Dónde va cada marca y cada objeto, y lo que pasa al examinarlos |
@@ -117,4 +122,4 @@ Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería 
 | `src/audio.ts` | Sonido sintetizado más capa grabada: tarareo, portasueros, música adaptativa, su voz espectral, susurros, tormenta |
 | `src/post.ts` | Render a baja resolución, bloom, haz de la linterna en el aire (volumétrico), tramado, grano (medido: ~2/255 en medios tonos, <1 en negros; un píxel, 24 fps, después del tramado), viñeta, rejilla, sábana, polvo en el haz |
 | `src/story.ts` | Objetivos, tutorial, eventos, puntos de control, alucinaciones |
-| `src/ui.ts`, `index.html`, `src/style.css` | Menús, HUD, notas, diario, ajustes |
+| `src/ui.ts`, `index.html`, `src/style.css` | Menús, HUD (anillo de ruido, ojo de alerta), notas, diario, plano de evacuación, ajustes |
