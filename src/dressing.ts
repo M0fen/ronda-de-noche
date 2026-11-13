@@ -78,7 +78,7 @@ export class Dressing {
   }
   private framed(tex: THREE.Texture, w: number, h: number, at: Pose, depth = 0.03) {
     const back = lam({ color: 0x2a221a });
-    const front = lam({ map: tex });
+    const front = lam({ map: tex, color: 0xb8b8b8 }); // pictures sit a little under the torch's glare
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, depth), [back, back, back, back, front, back]);
     m.position.copy(at.p).addScaledVector(at.n, depth / 2 + 0.002);
     m.rotation.y = Math.atan2(at.n.x, at.n.z);

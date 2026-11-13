@@ -226,7 +226,7 @@ export class Player {
     // (the same falloff the light has), so a note on the wall, a painting or her face at arm's length
     // keeps its detail instead of burning out
     const near = THREE.MathUtils.clamp((this.aimD / 6) ** 1.6, 0.03, 1);
-    this.light.intensity = t.on ? lv.intensity * f * boxed * near : 0;
+    this.light.intensity = t.on ? lv.intensity * f * boxed * near * (1 - 0.4 * this.focusW) : 0; // looking closely, the eye adapts: detail instead of glare
     this.lens.color.setRGB(t.on ? 0.22 + 0.2 * f : 0.14, t.on ? 0.21 + 0.18 * f : 0.14, t.on ? 0.18 + 0.12 * f : 0.12);
     t.cos = Math.cos(lv.angle * 0.95); t.range = lv.range;
     if (t.on) {

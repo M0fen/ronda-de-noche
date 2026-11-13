@@ -34,6 +34,8 @@ En celular los botones son redondos, en arco alrededor del pulgar derecho: el gr
 
 ## Examinar
 
+Al examinar algo, la mirada se va hacia eso un momento: la vista se acerca, el campo se estrecha y los bordes se suavizan (lo mismo pasa la primera vez que la ves). Casi todo tiene una segunda frase, local y con humor (pereirano: el tinto, la hora Gaviria, El Diario del Otún, el jabón Rey, Sábados Felices…), y la primera vez que pasan ciertas cosas el personaje lo comenta («¡Corra, mijo, corra!»). Los cuadros cambian a tus espaldas: el fundador pierde el esparadrapo y no tiene ojos, el paisaje cafetero anochece con un recolector sin cara en cada surco, a las frutas del bodegón les salen ojos, la lámina volteada aparece de frente y en la promoción de 1974 aparece una hermana con la cabeza caída sobre el hombro.
+
 Casi todo se puede mirar de cerca con Usar: cuadros, camas, manos y escritos en las paredes, afiches, el reloj, el teléfono, la cajita de música, el radio, el televisor, las ventanas, las puertas del fondo. Cada cosa tiene varias frases (la segunda mirada no dice lo mismo) y algunas cambian cuando no las estás mirando: la foto de la promoción de 1974, el cuadro de la sabana, San Jorge. Otras hacen ruido y la atraen: el timbre de la recepción, la cajita de música, el radio y el teléfono, que suena cuando cruzas la recepción con el fusible. Con *Sustos reducidos* se quitan los sustos visuales (el reflejo en el televisor, las velas que se apagan, los ojos en la ventanilla de cirugía).
 
 ## Tormenta y canción
@@ -81,6 +83,7 @@ Todo el audio se sintetiza, pero cualquier archivo `src/sfx/<nombre>.mp3` se emp
 | `ui_select`, `ui_write`, `paper_open`, `paper_close`, `map_open`, `map_close` | Interfaz: elegir en un menú, el lápiz al cambiar el objetivo, abrir y dejar notas y el diario, desdoblar y doblar el plano (el tic al pasar por los menús y el sello del punto de control son sintéticos) |
 | `bottle_pick`, `torch_die`, `bed_in`, `bed_out`, `keys` | Recoger una botella, la linterna que se apaga o avisa con poca carga, meterse y salir de debajo de la cama, el llavero de ella cuando se asoma a un casillero |
 | `theme` | Canción del título (bucle de 55,94 s con la cola superpuesta) |
+| `vx_cama` … `vx_aquiesta` | La capa espectral de cada línea de ella, horneada aparte (susurros dobles con la fase revuelta, una octava abajo, un brillo inarmónico arriba, copias con desplazamiento de frecuencia que baten contra la voz, la última sílaba repitiéndose más grave y una cola oscura): suena dentro de tu cabeza mientras la voz seca viene de donde está ella |
 | `v_cama`, `v_visitas`, `v_dormir`, `v_ahi`, `v_quieto`, `v_aquiesta` | Su voz: «Shhh… ¿Qué haces fuera de la cama?», «Las visitas eran hasta las ocho», «Ya es hora de dormir», «Yo sé que estás ahí», «No te muevas…», «Ahí estás». Suenan desde donde está ella (con cadena espectral: doble fantasma, respiración en reversa y eco en tu cabeza), con subtítulo |
 
 Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería de Splice de Carlos; la voz es ElevenLabs (voz «Isabella») generada en Higgsfield; los de interfaz son Mirelo (Higgsfield), recortados y limpiados.
