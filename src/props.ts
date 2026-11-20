@@ -9,7 +9,7 @@ export interface Locker { id: string; kind: 'locker' | 'bed'; inside: THREE.Vect
 export interface Lamp { id: string; pos: THREE.Vector3; stand: THREE.Vector3; light: THREE.PointLight; bulb: THREE.MeshLambertMaterial; on: boolean; onTime: number; halo?: THREE.Sprite }
 export interface Bottle { id: string; mesh: THREE.Object3D; pos: THREE.Vector3; picked: boolean }
 export interface Note { def: NoteDef; mesh: THREE.Mesh; pos: THREE.Vector3; stand: THREE.Vector3; read: boolean }
-export interface EmLight { light: THREE.PointLight; lens: THREE.MeshLambertMaterial; base: number; t: number; phase: number; halo?: THREE.Sprite }
+export interface EmLight { light: THREE.PointLight; lens: THREE.MeshLambertMaterial; base: number; t: number; phase: number; halo?: THREE.Sprite; beacon?: boolean }
 interface Drip { x: number; z: number; t: number; drop: THREE.Mesh; ring: THREE.Mesh; y: number; ringT: number }
 
 const lam = (o: THREE.MeshLambertMaterialParameters) => new THREE.MeshLambertMaterial(o);
@@ -33,6 +33,8 @@ export class Props {
   glass = new Set<string>();
   fuse!: { mesh: THREE.Object3D; doors: THREE.Object3D[]; pos: THREE.Vector3; stand: THREE.Vector3; taken: boolean; open: number };
   panel!: { pos: THREE.Vector3; stand: THREE.Vector3; leds: THREE.MeshLambertMaterial[]; fuses: THREE.Object3D[]; installed: number };
+  /** the amber lamp over the breaker room door: where your eye goes first */
+  beacon = new THREE.Vector3(43.8, 2.62, 41);
   tv?: THREE.MeshLambertMaterial;
   windows: { x: number; z: number; nx: number; nz: number }[] = [];
   windowGlass!: THREE.MeshLambertMaterial; shafts: THREE.MeshBasicMaterial[] = []; poolMat?: THREE.MeshBasicMaterial;
@@ -65,7 +67,142 @@ export class Props {
     for (const c of level.cells) if (c.kind === 'furn') this.furniture(c.cx, c.cz, c.ch, R);
     this.place(tex, R);
     this.decorate(tex, R);
+    this.clutter(rng(4321));
     mergeStatic(this.group);
+  }
+
+  // ---- what a hospital left in a hurry looks like: boxes, stands, tanks, a parked chair, dead plants, a bucket by
+  // the leak. All of it hugs the walls (paths stay clear) and collides as low boxes; it merges into a few meshes.
+  private clutter(R: () => number) {
+    const L = this.level, m = this.mats, g = this.group;
+    const card = [lam({ color: 0x7b5d3b }), lam({ color: 0x6a4f31 }), lam({ color: 0x8a6c45 })], tape = lam({ color: 0xb09868 });
+    const tank = lam({ color: 0x2d5a3c }), steel = lam({ color: 0x8e918a }), red = lam({ color: 0x8e1c14 }), yellow = lam({ color: 0xc49a22 });
+    const terra = lam({ color: 0x86492c }), stalk = lam({ color: 0x4d4128 }), manila = lam({ color: 0xc6ae78 }), white = lam({ color: 0xd2ccbc });
+    const bag = new THREE.MeshLambertMaterial({ color: 0xd9e2e0, transparent: true, opacity: 0.55, depthWrite: false });
+    const NRM: Record<string, [number, number]> = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] };
+    // a spot against wall `side` of cell (cx, cz), `inset` metres out from it, slid `along` it; rot faces the room
+    const at = (cx: number, cz: number, side: string, inset: number, along = 0) => {
+      const c = L.center(cx, cz), [nx, nz] = NRM[side];
+      return { x: c.x + nx * (1 - inset) + (nz !== 0 ? along : 0), z: c.z + nz * (1 - inset) + (nx !== 0 ? along : 0), rot: Math.atan2(-nx, -nz) };
+    };
+    const block = (x: number, z: number, hw: number, hd: number) => { const c = L.at(x, z); if (c && c.kind === 'floor') c.boxes.push({ x0: x - hw, z0: z - hd, x1: x + hw, z1: z + hd, tall: false }); };
+    const put = (o: THREE.Object3D, x: number, z: number, rot = 0) => { o.position.set(x, 0, z); o.rotation.y = rot; o.traverse(k => { const mm = k as THREE.Mesh; if (mm.isMesh) { mm.castShadow = true; mm.receiveShadow = true; } }); g.add(o); return o; };
+    const cyl = (r0: number, r1: number, h: number, mat: THREE.Material, x = 0, y = 0, z = 0, seg = 10, open = false) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg, 1, open), mat); c.position.set(x, y + h / 2, z); return c; };
+
+    const boxes = (cx: number, cz: number, side: string, n: number, along = 0) => {
+      const p = at(cx, cz, side, 0.36, along), o = new THREE.Group();
+      let y = 0;
+      for (let i = 0; i < n; i++) {
+        const w = 0.48 + R() * 0.22, h = 0.3 + R() * 0.18, d = 0.38 + R() * 0.16;
+        const b = box(w, h, d, card[Math.floor(R() * 3)], (R() - 0.5) * 0.08, y, (R() - 0.5) * 0.06); b.rotation.y = (R() - 0.5) * 0.35; o.add(b);
+        const t = box(0.07, 0.004, d + 0.004, tape, 0, y + h, 0); t.rotation.y = b.rotation.y; t.position.x = b.position.x; t.position.z = b.position.z; o.add(t);
+        y += h;
+      }
+      put(o, p.x, p.z, p.rot); block(p.x, p.z, 0.34, 0.3);
+    };
+    const tanks = (cx: number, cz: number, side: string, n: number, along = 0) => {
+      const p = at(cx, cz, side, 0.2, along), o = new THREE.Group();
+      for (let i = 0; i < n; i++) {
+        const x = (i - (n - 1) / 2) * 0.21;
+        o.add(cyl(0.09, 0.09, 1.08, tank, x, 0, 0, 12), cyl(0.06, 0.09, 0.08, tank, x, 1.08, 0, 12), cyl(0.02, 0.02, 0.1, steel, x, 1.16, 0, 6));
+        const gauge = cyl(0.028, 0.028, 0.012, white, x + 0.03, 1.2, 0, 10); gauge.rotation.x = Math.PI / 2; o.add(gauge);
+      }
+      o.add(box(n * 0.21 + 0.06, 0.02, 0.02, steel, 0, 0.72, -0.085)); // the chain bar to the wall
+      put(o, p.x, p.z, p.rot); block(p.x, p.z, n * 0.11, 0.12);
+    };
+    const ivStand = (x: number, z: number, rot = 0) => {
+      const o = new THREE.Group();
+      for (let k = 0; k < 5; k++) { const leg = box(0.28, 0.02, 0.025, steel, 0, 0.04, 0); leg.geometry.translate(0.14, 0, 0); leg.rotation.y = (k / 5) * Math.PI * 2; o.add(leg); }
+      o.add(cyl(0.012, 0.012, 1.92, steel, 0, 0.05, 0, 6), box(0.36, 0.015, 0.015, steel, 0, 1.95, 0));
+      const b = box(0.12, 0.2, 0.035, bag, 0.15, 1.7, 0); o.add(b, cyl(0.003, 0.003, 0.9, bag, 0.15, 0.82, 0, 4));
+      put(o, x, z, rot); block(x, z, 0.16, 0.16);
+    };
+    const wheelchair = (x: number, z: number, rot: number) => {
+      const o = new THREE.Group();
+      for (const sd of [-1, 1]) {
+        const w = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.018, 6, 20), steel); w.rotation.y = Math.PI / 2; w.position.set(0.26 * sd, 0.31, 0.04); o.add(w);
+        o.add(box(0.025, 0.025, 0.5, steel, 0.23 * sd, 0.62, -0.02), cyl(0.012, 0.012, 0.42, steel, 0.23 * sd, 0.08, -0.2, 6));
+        const caster = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 5, 10), m.dark); caster.rotation.y = Math.PI / 2; caster.position.set(0.2 * sd, 0.05, 0.3); o.add(caster);
+      }
+      o.add(box(0.46, 0.05, 0.44, m.chair, 0, 0.47, 0), box(0.46, 0.44, 0.04, m.chair, 0, 0.52, -0.22), box(0.36, 0.02, 0.16, steel, 0, 0.12, 0.36));
+      put(o, x, z, rot); block(x, z, 0.36, 0.38);
+    };
+    const extinguisher = (cx: number, cz: number, side: string, along = 0) => {
+      const p = at(cx, cz, side, 0.1, along), o = new THREE.Group();
+      o.add(cyl(0.075, 0.075, 0.48, red, 0, 1.08, 0, 12), cyl(0.03, 0.05, 0.06, m.dark, 0, 1.56, 0, 8), box(0.1, 0.03, 0.03, m.dark, 0.03, 1.62, 0)); // above the handrails
+      const hose = cyl(0.01, 0.01, 0.4, m.dark, 0.08, 1.16, 0.02, 5); hose.rotation.z = 0.1; o.add(hose);
+      o.add(box(0.2, 0.04, 0.06, steel, 0, 1.26, -0.07));
+      put(o, p.x, p.z, p.rot);
+    };
+    const plant = (cx: number, cz: number, side: string, along = 0) => {
+      const p = at(cx, cz, side, 0.32, along), o = new THREE.Group();
+      o.add(cyl(0.17, 0.13, 0.34, terra, 0, 0, 0, 12), cyl(0.155, 0.155, 0.01, m.dark, 0, 0.32, 0, 12));
+      for (let k = 0; k < 7; k++) { const h = 0.35 + R() * 0.55, st = cyl(0.006, 0.004, h, stalk, 0, 0, 0, 4), pv = new THREE.Object3D(); pv.position.y = 0.33; pv.add(st); pv.rotation.set((R() - 0.5) * 0.9, R() * 6.28, (R() - 0.5) * 0.9); o.add(pv); } // dry stalks out of the soil
+      put(o, p.x, p.z, p.rot); block(p.x, p.z, 0.18, 0.18);
+    };
+    const bin = (cx: number, cz: number, side: string, along = 0) => {
+      const p = at(cx, cz, side, 0.3, along), o = new THREE.Group();
+      o.add(cyl(0.17, 0.15, 0.5, m.dark, 0, 0, 0, 12, true), cyl(0.15, 0.15, 0.01, m.dark, 0, 0.02, 0, 12));
+      for (let k = 0; k < 6; k++) { const pb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.05 + R() * 0.03, 0), white); pb.position.set((R() - 0.5) * 0.2, k < 3 ? 0.5 + R() * 0.06 : 0.04, (R() - 0.5) * 0.2 + (k < 3 ? 0 : 0.25)); o.add(pb); }
+      put(o, p.x, p.z, p.rot); block(p.x, p.z, 0.18, 0.18);
+    };
+    const ladder = (cx: number, cz: number, side: string, along = 0) => {
+      const p = at(cx, cz, side, 0.42, along), o = new THREE.Group(), lean = new THREE.Object3D();
+      for (const sd of [-1, 1]) lean.add(box(0.04, 2.3, 0.04, lam({ color: 0x9a8a62 }), 0.2 * sd, 0, 0));
+      for (let k = 1; k < 7; k++) lean.add(box(0.4, 0.03, 0.03, lam({ color: 0x9a8a62 }), 0, k * 0.32, 0));
+      lean.rotation.x = -0.17; o.add(lean);
+      put(o, p.x, p.z, p.rot); block(p.x, p.z, 0.24, 0.28);
+    };
+    const chairDown = (x: number, z: number, rot: number) => {
+      const o = new THREE.Group(), c = new THREE.Group();
+      c.add(box(0.42, 0.04, 0.4, m.chair, 0, 0.44, 0), box(0.42, 0.42, 0.03, m.chair, 0, 0.48, -0.19));
+      for (const [lx, lz] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) c.add(cyl(0.012, 0.012, 0.44, steel, lx, 0, lz, 5));
+      c.rotation.z = Math.PI / 2; c.position.set(0.44, 0.2, 0); o.add(c);
+      put(o, x, z, rot); block(x, z, 0.4, 0.3);
+    };
+    const folders = (x: number, z: number, n: number, spread: number) => {
+      for (let k = 0; k < n; k++) { const f = box(0.23, 0.012, 0.31, R() < 0.7 ? manila : white, 0, 0, 0); put(f, x + (R() - 0.5) * spread, z + (R() - 0.5) * spread, R() * 6.28); f.position.y = 0.002 + k * 0.001; }
+    };
+    // the yellow A-frame by the leak: ¡CUIDADO! PISO MOJADO
+    const wetSign = (x: number, z: number, rot: number) => {
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 256; const c2 = cv.getContext('2d')!;
+      c2.fillStyle = '#d6a91e'; c2.fillRect(0, 0, 128, 256); c2.fillStyle = '#16140e'; c2.textAlign = 'center';
+      c2.font = 'bold 22px Arial, sans-serif'; c2.fillText('¡CUIDADO!', 64, 46);
+      c2.beginPath(); c2.moveTo(64, 70); c2.lineTo(104, 140); c2.lineTo(24, 140); c2.closePath(); c2.lineWidth = 6; c2.stroke();
+      c2.font = 'bold 34px Arial, sans-serif'; c2.fillText('!', 64, 132);
+      c2.font = 'bold 21px Arial, sans-serif'; c2.fillText('PISO', 64, 180); c2.fillText('MOJADO', 64, 206);
+      for (let k = 0; k < 900; k++) { c2.fillStyle = `rgba(40,30,10,${Math.random() * 0.18})`; c2.fillRect(Math.random() * 128, Math.random() * 256, 2, 2); }
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+      const face = lam({ map: t, side: THREE.DoubleSide });
+      const o = new THREE.Group();
+      for (const sd of [-1, 1]) { const pnl = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.6), face); pnl.position.set(0, 0.3, 0.09 * sd); pnl.rotation.set(0.28 * sd, sd > 0 ? 0 : Math.PI, 0); o.add(pnl); }
+      put(o, x, z, rot); block(x, z, 0.18, 0.14);
+    };
+    const bucket = (x: number, z: number) => {
+      const o = new THREE.Group();
+      o.add(cyl(0.2, 0.17, 0.3, yellow, 0, 0, 0, 12, true), cyl(0.17, 0.17, 0.01, yellow, 0, 0.02, 0, 12), box(0.22, 0.12, 0.08, yellow, 0, 0.3, -0.12));
+      const stick = cyl(0.014, 0.014, 1.35, lam({ color: 0x6b5a3a }), 0, 0, 0, 6); const pv = new THREE.Object3D(); pv.position.set(0.04, 0.12, 0.02); pv.rotation.set(0.28, 0, -0.2); pv.add(stick); o.add(pv);
+      put(o, x, z, R() * 6); block(x, z, 0.22, 0.22);
+    };
+
+    // RECEPTION: a parked wheelchair by the doors, plants in the corners, boxes along the north wall, files on the floor
+    boxes(12, 18, 'N', 2); plant(13, 18, 'N', 0.4); boxes(21, 18, 'N', 3, -0.4); boxes(18, 18, 'N', 1, 0.3);
+    wheelchair(34.6, 46.6, Math.PI * 0.92); plant(10, 23, 'S', -0.45); bin(14, 23, 'S'); extinguisher(21, 22, 'E', -0.5);
+    folders(25.6, 41.2, 7, 1.3);
+    // BREAKER ROOM: oxygen chained to the wall, a ladder, boxes and a toolbox
+    tanks(24, 18, 'N', 3); ladder(25, 22, 'S', 0.3); boxes(26, 22, 'S', 2, 0.2); boxes(27, 19, 'E', 1);
+    { const tb = box(0.42, 0.18, 0.2, red, 0, 0, 0); put(tb, 52.2, 43.2, 0.4); const hd = box(0.2, 0.03, 0.03, m.dark, 0, 0.2, 0); put(hd, 52.2, 43.2, 0.4); hd.position.y = 0.2; block(52.2, 43.2, 0.24, 0.16); }
+    // MAIN CORRIDOR: the sign and the bucket by the leak, tanks and a stand further up, boxes by the wall
+    wetSign(30.42, 19.2, 1.2); bucket(30.55, 15.2); boxes(16, 15, 'E', 2); tanks(15, 16, 'W', 2); ivStand(30.45, 26.8, 0.3); bin(16, 14, 'E', 0.3);
+    // NORTH CORRIDOR
+    boxes(5, 3, 'N', 3); ivStand(24.4, 6.5, 1.1); boxes(23, 3, 'N', 2, 0.3); bin(27, 4, 'S'); tanks(12, 3, 'N', 2, 0.4); extinguisher(17, 3, 'N');
+    // WARD B: drip stands at the heads of the beds, boxes of linen, a second chair waiting
+    ivStand(6.6, 14.6, 0.4); ivStand(6.6, 22.6, 2.2); ivStand(25.4, 14.6, 2.9); ivStand(6.6, 26.6, 1.3);
+    boxes(12, 6, 'N', 2); wheelchair(17.2, 28.6, 0.15); bin(9, 14, 'S', 0.4);
+    // DAYROOM: a chair knocked over, plants, a bin
+    chairDown(56.9, 22.6, 0.7); plant(27, 6, 'N', 0.3); plant(18, 12, 'W', 0.4); bin(25, 13, 'S'); boxes(22, 13, 'S', 1, 0.5);
+    // LINEN ROOM: boxes of sheets
+    boxes(5, 20, 'S', 2, 0.2); boxes(7, 20, 'S', 3, -0.2);
   }
 
   // Curtains: every column of cloth is a damped spring, coupled to its neighbours. Bodies push it out of
@@ -375,6 +512,17 @@ export class Props {
       const halo = this.halo(tex, 0xff3a22, 0.95); halo.position.set(e.x, e.y - 0.08, e.z); this.group.add(halo);
       this.em.push({ light, lens, base: 2.2, t: 0, phase: i * 1.7, halo });
     });
+    // the way in: an amber battery lamp over the breaker room door, breathing slowly; from where you start it is the
+    // one warm light in the room
+    {
+      const lens = lam({ color: 0x3a2610, emissive: 0xb86a18 });
+      const fx = box(0.3, 0.07, 0.12, lens, 43.84, 2.9, 41); fx.castShadow = false; this.group.add(fx);
+      const light = new THREE.PointLight(0xffa64a, 2.6, 10, 2);
+      light.position.set(43.1, 2.35, 41); // out from the wall: it washes the door and the sign instead of burning a spot
+      this.group.add(light);
+      const halo = this.halo(tex, 0xffb050, 0.9); halo.position.set(43.8, 2.86, 41); this.group.add(halo);
+      this.em.push({ light, lens, base: 2.6, t: 0, phase: 0, halo, beacon: true });
+    }
 
     // glass shards that crunch underfoot
     const tri = new THREE.BufferGeometry();
@@ -586,10 +734,10 @@ export class Props {
       e.t += dt;
       // slow, irregular dips; never faster than ~3 per second
       const w = Math.sin(t * 0.7 + e.phase) * 0.5 + Math.sin(t * 2.3 + e.phase * 3) * 0.3 + Math.sin(t * 5.1 + e.phase) * 0.2 * (reduced ? 0 : 1);
-      let k = 0.75 + 0.25 * w;
+      let k = e.beacon ? 0.62 + 0.38 * (0.5 + 0.5 * Math.sin(t * 2.1)) : 0.75 + 0.25 * w;
       if (!reduced && flickerBoost > 0) k *= 1 - flickerBoost * (0.5 + 0.5 * Math.sin(t * 9.4 + e.phase)) * 0.6;
       e.light.intensity = e.base * Math.max(0.15, k);
-      e.lens.emissive.setRGB(0.6 * k, 0.1 * k, 0.06 * k);
+      if (e.beacon) e.lens.emissive.setRGB(0.95 * k, 0.55 * k, 0.16 * k); else e.lens.emissive.setRGB(0.6 * k, 0.1 * k, 0.06 * k);
       if (e.halo) (e.halo.material as THREE.SpriteMaterial).opacity = 0.42 * Math.max(0.15, k);
     }
     for (const l of this.lamps) {

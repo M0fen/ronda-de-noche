@@ -20,7 +20,10 @@ export class AudioSys {
   private noise!: AudioBuffer;
   private stems: Record<string, GainNode> = {};
   private stemLevel: Record<string, number> = { calm: 0, unease: 0, hunted: 0, chase: 0 };
-  private nurseIn!: GainNode; private nurseLP!: BiquadFilterNode; private nursePan!: PannerNode; private humGain!: GainNode; private vib!: OscillatorNode; private vibAmt!: GainNode;
+  private nurseIn!: GainNode; private nurseLP!: BiquadFilterNode; private nursePan!: PannerNode; private nurseWet!: GainNode;
+  private herAt = { x: 0, y: 0, z: 0 }; private earAt = { x: 0, y: 0, z: 0 }; private breathT = 0;
+  /** how close she is, 0 (far) .. 1 (at your shoulder): what of her you hear inside your head scales with it */
+  get herNear() { const d = Math.hypot(this.herAt.x - this.earAt.x, this.herAt.z - this.earAt.z); return Math.min(1, Math.max(0, 1.15 - d / 14)); } private humGain!: GainNode; private vib!: OscillatorNode; private vibAmt!: GainNode;
   private humOn = false; private humNext = 0; private humIdx = 0; private humRec: { s: AudioBufferSourceNode; g: GainNode } | null = null;
   private heartNext = 0; private breathNext = 0; private breathIn = true; private pulseNext = 0; private chaseNext = 0;
   private ambNext = 0;
@@ -64,6 +67,8 @@ export class AudioSys {
     this.nurseLP = ctx.createBiquadFilter(); this.nurseLP.type = 'lowpass'; this.nurseLP.frequency.value = 8000;
     this.nurseIn = ctx.createGain();
     this.nurseIn.connect(this.nurseLP).connect(this.nursePan).connect(this.voice);
+    this.nurseWet = ctx.createGain(); this.nurseWet.gain.value = 0.2;
+    this.nurseLP.connect(this.nurseWet).connect(this.verbIn);
     this.humGain = ctx.createGain(); this.humGain.gain.value = 0;
     const formant = ctx.createBiquadFilter(); formant.type = 'peaking'; formant.frequency.value = 340; formant.gain.value = 7; formant.Q.value = 1.2;
     const hp = ctx.createBiquadFilter(); hp.type = 'lowpass'; hp.frequency.value = 1150;
@@ -114,7 +119,7 @@ export class AudioSys {
   // copies (doubled, not quite human) and a mild occlusion low-pass, all panned from where she stands.
   // Ghost: an airy high-passed copy right inside your head with a long hall, and a reversed reverb that
   // swells INTO each line. Music and ambience duck while she talks.
-  private vIn!: GainNode; private vLP!: BiquadFilterNode; private preIn!: GainNode; private vxBus!: GainNode;
+  private vIn!: GainNode; private vLP!: BiquadFilterNode; private preIn!: GainNode; private vxBus!: GainNode; private ghost!: GainNode;
   private pre = new Map<string, AudioBuffer>();
   private readonly PRE = 0.9;   // reversed-reverb length (s)
   private readonly LEAD = 0.5;  // how much of the swell plays before the first word (s)
@@ -136,7 +141,7 @@ export class AudioSys {
     this.vLP = f('lowpass', 12000, 0, 0.5);
     mix.connect(this.vLP).connect(this.nursePan);
     // the ghost in your head
-    const ghost = ctx.createGain(); ghost.gain.value = 0.24;
+    const ghost = ctx.createGain(); ghost.gain.value = 0.24; this.ghost = ghost;
     const air = f('highpass', 1300, 0, 0.6);
     makeup.connect(ghost).connect(air).connect(this.voice);
     const hall = ctx.createConvolver(), sr = ctx.sampleRate, len = Math.floor(sr * 4.2), ir = ctx.createBuffer(2, len, sr);
@@ -171,6 +176,8 @@ export class AudioSys {
     if (!b || !this.ctx) return false;
     const ctx = this.ctx, t = ctx.currentTime, rate = 0.94, pre = this.pre.get(name);
     const t0 = t + 0.05 + (pre ? this.LEAD : 0);
+    const near = this.herNear, head = 0.3 + 0.7 * near;
+    this.preIn.gain.setValueAtTime(0.55 * head, t); this.vxBus.gain.setValueAtTime(0.85 * head, t); this.ghost.gain.setValueAtTime(0.24 * head, t);
     if (pre) { const s = ctx.createBufferSource(); s.buffer = pre; s.playbackRate.value = rate; s.connect(this.preIn); s.start(t + 0.05, Math.max(0, this.PRE - this.LEAD * rate)); }
     this.sample(name, this.vIn, t0, gain, rate, 0);
     this.sample('vx_' + name.slice(2), this.vxBus, t0, gain * 0.62, rate, 0);
@@ -181,7 +188,7 @@ export class AudioSys {
       g.cancelScheduledValues(t); g.setTargetAtTime(Math.min(v, 0.12), t, 0.05);
       if (this.humOn) g.setTargetAtTime(this.humRec && g === this.humRec.g.gain ? 0.9 : 1, end, 0.3);
     }
-    const d = this.duck.gain; d.cancelScheduledValues(t); d.setTargetAtTime(0.5, t, 0.15); d.setTargetAtTime(1, end + 0.3, 0.8);
+    const d = this.duck.gain; d.cancelScheduledValues(t); d.setTargetAtTime(0.75 - 0.3 * near, t, 0.15); d.setTargetAtTime(1, end + 0.3, 0.8);
     return true;
   }
   private sample(name: string, dest: AudioNode, t: number, gain = 1, rate = 1, jitter = 0.05) {
@@ -216,6 +223,7 @@ export class AudioSys {
 
   listener(pos: V3, fwd: V3) {
     if (!this.ctx) return;
+    this.earAt = { x: pos.x, y: pos.y, z: pos.z };
     const l = this.ctx.listener;
     if (l.positionX) {
       l.positionX.value = pos.x; l.positionY.value = pos.y; l.positionZ.value = pos.z;
@@ -403,11 +411,34 @@ export class AudioSys {
   // IV stand squeak and rattle, from the Nurse's position.
   squeak() { if (!this.ctx) return; if (this.sample('squeak', this.nurseIn, this.ctx.currentTime, 0.35, 1, 0.14)) return; const t = this.ctx.currentTime; const f = 2100 + Math.random() * 500; this.tone(this.nurseIn, t, 'sine', f, f * 1.18, 0.11, 0.07, 0.02); this.tone(this.nurseIn, t, 'square', f * 0.5, f * 0.6, 0.08, 0.012, 0.02); }
   rattle() { if (!this.ctx) return; const t = this.ctx.currentTime; for (let i = 0; i < 3; i++) this.tone(this.nurseIn, t + i * 0.05, 'sine', 1900 + Math.random() * 900, 1700, 0.06, 0.05); }
-  nurseStep(w = 1) { if (!this.ctx) return; if (this.sample('nurse_step', this.nurseIn, this.ctx.currentTime, 0.5 * w, 1, 0.1)) return; this.step(undefined, 0, 0.8 * w, true); }
+  nurseStep(w = 1) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    // the heel: a hard click and the tile ringing after it, so her step is never mistaken for yours
+    this.burst(this.nurseIn, t, 0.018, 'bandpass', 2600 + Math.random() * 500, 2.2, 0.16 * w, 0.0008);
+    this.tone(this.nurseIn, t, 'triangle', 1180 + Math.random() * 90, 1100, 0.07, 0.035 * w, 0.001);
+    if (this.sample('nurse_step', this.nurseIn, t + 0.012, 0.58 * w, 0.96, 0.08)) return;
+    this.step(undefined, 0, 0.8 * w, true);
+  }
+  // close up, behind the mask: her breathing, slow and wet, when she is a few steps away and not humming
+  herBreath(dt: number, near: number, calm: boolean) {
+    if (!this.ctx) return;
+    this.breathT -= dt;
+    if (this.breathT > 0 || near < 0.72 || this.humOn) return;
+    this.breathT = calm ? 3.4 + Math.random() * 1.2 : 2.2 + Math.random() * 0.6;
+    const t = this.ctx.currentTime, k = (near - 0.72) / 0.28;
+    // in: a long rasp through cloth, rising; out: lower, with a catch in it
+    const a = this.burst(this.nurseIn, t, 1.1, 'bandpass', 700, 1.6, 0.05 + 0.09 * k, 0.45); a.f.frequency.linearRampToValueAtTime(1300, t + 1.1);
+    const b = this.burst(this.nurseIn, t + 1.25, 1.3, 'bandpass', 520, 1.2, 0.06 + 0.1 * k, 0.18); b.f.frequency.linearRampToValueAtTime(300, t + 2.5);
+    this.tone(this.nurseIn, t + 1.3, 'sawtooth', 88, 70, 0.55, 0.006 + 0.01 * k, 0.12); // a croak deep in the throat
+  }
 
   nurse(pos: V3, occl: number) {
     if (!this.ctx) return;
     this.setPos(this.nursePan, pos);
+    this.herAt = { x: pos.x, y: pos.y, z: pos.z };
+    const d = Math.hypot(pos.x - this.earAt.x, pos.z - this.earAt.z);
+    this.nurseWet.gain.setTargetAtTime(Math.min(0.85, 0.12 + d / 16 + occl * 0.12), this.ctx.currentTime, 0.2);
     const f = 9000 / (1 + occl * 2.8);
     this.nurseLP.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.08);
     this.vLP.frequency.setTargetAtTime(12000 / (1 + occl * 1.6), this.ctx.currentTime, 0.08); // words stay readable through a wall
@@ -533,6 +564,34 @@ export class AudioSys {
       c.g.gain.setTargetAtTime(want, t, 2.2);
       c.lp.frequency.setTargetAtTime(900 + 3200 * Math.max(0, 1 - d / 12), t, 0.5);
     }
+  }
+
+  // The breaker room hums: mains buzz and the odd crackle from the dead board, heard from the reception through the
+  // door, so the ear can find the room as well as the eye. Started once; it stays.
+  private buzzOn = false;
+  buzz(pos: V3) {
+    if (!this.ctx || this.buzzOn) return;
+    this.buzzOn = true;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const p = this.panner(); this.setPos(p, pos); p.refDistance = 2.2; p.rolloffFactor = 1.5;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 3);
+    g.connect(p).connect(this.amb);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 240; bp.Q.value = 1.4;
+    for (const [f, a] of [[60, 0.05], [120, 0.04], [180.6, 0.018]] as [number, number][]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const og = ctx.createGain(); og.gain.value = a; o.connect(og).connect(bp); o.start(t);
+    }
+    // the ballast sags and recovers
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.23; const lg = ctx.createGain(); lg.gain.value = 0.25;
+    const amp = ctx.createGain(); amp.gain.value = 0.75; lfo.connect(lg).connect(amp.gain); lfo.start(t);
+    bp.connect(amp).connect(g);
+    const crackle = () => {
+      if (!this.ctx) return;
+      const tt = this.ctx.currentTime;
+      for (let i = 0, n = 2 + Math.floor(Math.random() * 5); i < n; i++) this.burst(g, tt + i * (0.012 + Math.random() * 0.03), 0.01 + Math.random() * 0.02, 'highpass', 2500 + Math.random() * 3000, 0.7, 0.05 + Math.random() * 0.08, 0.001);
+      setTimeout(crackle, 700 + Math.random() * 2600);
+    };
+    setTimeout(crackle, 1500);
   }
 
   // Random building sounds: drips, settling creaks, a distant gurney.

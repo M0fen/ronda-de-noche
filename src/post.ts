@@ -204,7 +204,7 @@ export class Post {
 }
 
 // Dust motes that only show up inside the torch beam.
-export function makeDust(count = 360) {
+export function makeDust(count = 560) {
   const geo = new THREE.BufferGeometry();
   const a = new Float32Array(count * 3);
   for (let i = 0; i < a.length; i++) a[i] = Math.random();
@@ -224,7 +224,7 @@ export function makeDust(count = 360) {
         vec3 wp = uCam + mod(s * uBox + drift - uCam, uBox) - uBox * 0.5;
         vec3 tv = wp - uTorchPos; float d = length(tv);
         float c = dot(tv / max(d, 0.001), uTorchDir);
-        float cone = smoothstep(uTorchCos, uTorchCos + 0.04, c) * (1.0 - smoothstep(uTorchRange * 0.25, uTorchRange * 0.8, d)) * smoothstep(0.3, 0.9, d);
+        float cone = smoothstep(uTorchCos, uTorchCos + 0.05, c) * (0.35 + 0.65 * smoothstep(uTorchCos + 0.02, 1.0, c)) * (1.0 - smoothstep(uTorchRange * 0.3, uTorchRange * 0.85, d)) * smoothstep(0.3, 0.9, d);
         vB = cone * uTorchOn * (0.55 + 0.45 * sin(uTime * 1.7 + s.x * 40.0));
         vec4 mv = viewMatrix * vec4(wp, 1.0);
         gl_PointSize = clamp(9.0 / -mv.z, 1.0, 3.5) * uPx;

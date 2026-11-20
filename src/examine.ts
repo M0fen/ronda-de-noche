@@ -10,7 +10,7 @@ export interface ExamDef {
   range?: number;
   aim?: number;                  // how centred the crosshair must be (cosine), default 0.94
   los?: boolean;                 // require a clear line from the eye (default true)
-  lines?: string[];
+  lines?: (string | (() => string))[]; // a function is read when it is shown (the lines that use the real clock)
   sound?: string;                // foley: paper, cloth, metal, glass, wood, tap, none
   use?: (stage: number, ex: Examine) => void;
   enabled?: () => boolean;
@@ -38,8 +38,11 @@ export class Examine {
   use(d: ExamDef) {
     const s = this.stage.get(d.id) ?? 0;
     this.stage.set(d.id, s + 1);
-    this.game.player.focusOn(d.pos, 1.35); // the eye goes to it for a moment
-    if (d.lines?.length) this.say(d.lines[Math.min(s, d.lines.length - 1)]);
+    const line = d.lines?.length ? d.lines[Math.min(s, d.lines.length - 1)] : '';
+    const text = typeof line === 'function' ? line() : line;
+    // the eye stays on it while you read (about as long as the line takes), unless you look or walk away
+    this.game.player.focusOn(d.pos, text ? Math.min(5.5, Math.max(2.2, 1.4 + text.length / 28)) : 1.35);
+    if (text) this.say(text);
     if (d.sound !== 'none') this.game.audio.touch(d.sound ?? 'tap');
     d.use?.(s, this);
   }

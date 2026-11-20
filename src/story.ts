@@ -2,6 +2,7 @@ import { T } from './telemetry';
 import * as THREE from 'three';
 import type { Game } from './game';
 import { AREAS, RECORDS_TOTAL, type Area } from './content';
+import { Meta } from './meta';
 import type { Door } from './level';
 import type { Note } from './props';
 
@@ -24,7 +25,7 @@ const TUT: Record<string, { act: string; text: string }> = {
   locker: { act: 'interact', text: 'Algo viene. Escóndete en un casillero' },
   breath: { act: 'breath', text: 'Aguanta la respiración mientras esté cerca. La luz de la linterna se escapa por la rejilla. Suelta cuando vuelva a tararear' },
   journal: { act: 'journal', text: 'Diario: notas y objetivo' },
-  map: { act: 'map', text: 'Plano: dónde estás, lo que ya recorriste y dónde esconderte' },
+  map: { act: 'map', text: 'Plano: dónde estás, a dónde ir (el círculo rojo) y dónde esconderte' },
   run: { act: 'sprint', text: 'Corre y rompe su línea de visión. Las puertas y las esquinas ayudan' },
 };
 
@@ -38,7 +39,7 @@ export class Story {
   moved = 0; private lastPos = { x: 0, z: 0 };
   timers: { t: number; fn: () => void }[] = [];
   hallT = 10; halluc: THREE.Sprite[] = []; hallLife = 0;
-  sightWait = 0; private saves = 0;
+  sightWait = 0; private saves = 0; private lostT = 0; private idleT = 0; // seconds without making progress toward the objective
 
   constructor(private game: Game) {
     this.buildItems();
@@ -163,6 +164,7 @@ export class Story {
       G.subtitle('Cuatro portafusibles vacíos: PABELLÓN, CIRUGÍA, ANFITEATRO, ARCHIVO.');
       this.save();
       this.after(3, () => this.queue('map'));
+      this.lostT = 0;
     }
     if (P.hasFuse) {
       P.hasFuse = false; pn.installed++;
@@ -231,13 +233,55 @@ export class Story {
   }
 
   begin() {
-    const G = this.game;
-    this.setObjective('Encuentra el tablero eléctrico.');
-    this.after(1.5, () => { if (!G.player.torch.on) this.queue('torch'); });
+    const G = this.game, P = G.player;
+    this.setObjective('Encuentra el tablero eléctrico: al fondo de la recepción, bajo la luz ámbar.');
+    // after the slam your hands find the torch on their own, and your eyes find the way: the one warm light in
+    // the room, over the breaker room door
+    this.after(1.1, () => { if (G.mode === 'play' && !P.torch.on && P.torch.battery > 1) { P.torch.on = true; G.audio.click(); this.tutDone.add('torch'); } });
+    this.after(2.1, () => { if (G.mode === 'play' && !this.flags.panelSeen) { this.glanceAtWay(2.6); G.bark('way', 'Esa luz ámbar, al fondo. Allá es el cuarto eléctrico.', 0.4); } });
+    this.after(5.2, () => { if (!this.tutDone.has('move') && !this.tutCur) this.queue('move'); });
+    G.audio.buzz({ x: 45.2, y: 2.1, z: 41 });
+    if (Meta.late()) G.bark('late', `Son ${Meta.clock()}. De verdad, allá donde estás. ¿Qué haces jugando esto a esta hora?`, 16);
+    this.lostT = 0;
     this.lastPos = { ...G.player.pos };
     this.save();
     // the Nurse waits off-stage until the first sighting
     G.nurse.teleport(4, 7, Math.PI / 2); G.nurse.reset('frozen'); G.nurse.rig.root.visible = false; G.nurse.iv.visible = false;
+  }
+
+  // a look toward where to go next, if it can be seen from here
+  glanceAtWay(dur = 2.2) {
+    const G = this.game, P = G.player, b = this.wayPoint();
+    if (!b || G.level.blocked(P.eye.x, P.eye.z, b.x, b.z)) return false;
+    P.focusOn(b, dur, 0.8);
+    return true;
+  }
+  private wayPoint(): THREE.Vector3 | null {
+    const G = this.game, P = G.player;
+    if (!this.flags.panelSeen || P.hasFuse) return this.area?.id === 'breaker' ? G.props.panel.pos : G.props.beacon;
+    if (!G.props.fuse.taken) return this.area?.id === 'reception' || this.area?.id === 'breaker' ? new THREE.Vector3(32, 1.6, 33) : null; // the mouth of the main corridor
+    return null;
+  }
+  // lost for a while: first a thought that points the way (and a look, if it can be seen), then the plan
+  private lostHints(dt: number) {
+    const G = this.game, P = G.player;
+    if (G.mode !== 'play' || P.inLocker || G.nurse.state === 'chase') return;
+    const goal = !this.flags.panelSeen ? 'panel' : !G.props.fuse.taken && !this.seenAreas.has('ward') ? 'ward' : '';
+    if (!goal) { this.lostT = 0; return; }
+    this.lostT += dt;
+    const k = `lost_${goal}`;
+    if (this.lostT > 30 && !this.flags[k + '1']) {
+      this.flags[k + '1'] = true;
+      const looked = this.glanceAtWay(2.2);
+      G.ui.objective(this.objective);
+      if (goal === 'panel') G.ui.thought(looked ? 'La luz ámbar. Allá, al fondo de la recepción.' : 'El tablero estaba en el cuarto eléctrico, al fondo de la recepción. Donde parpadea la luz ámbar.');
+      else G.ui.thought(looked ? 'El pasillo principal. El Pabellón B queda al norte.' : 'El Pabellón B queda al norte, por el pasillo principal.');
+    }
+    if (this.lostT > 60 && !this.flags[k + '2']) {
+      this.flags[k + '2'] = true;
+      this.tutDone.delete('map'); this.queue('map');
+      G.ui.thought('Mejor miro el plano. El círculo rojo es a donde tengo que ir.');
+    }
   }
 
   private startSighting() {
@@ -248,7 +292,7 @@ export class Story {
     N.humWant = true;
     N.runScript([
       { to: { x: 32, z: 9.4 }, speed: 1.6, call: () => { N.humWant = true; } },
-      { wait: 2.1, look: true, glint: 0.9, call: () => { N.humWant = false; G.audio.stinger(true); G.input.rumble(0.3, 0.6, 400); G.player.shake = 0.25; G.player.focusOn(N.rig.head.getWorldPosition(new THREE.Vector3()), 1.9, 0.75); G.bark('sight', '¿Y esa señora qué? No, no, no, no.', 1.1); } },
+      { wait: 2.1, look: true, glint: 0.9, call: () => { N.humWant = false; G.audio.stinger(true); G.input.rumble(0.3, 0.6, 400); G.player.flinch(0.8); G.player.focusOn(N.rig.head.getWorldPosition(new THREE.Vector3()), 1.9, 0.75); G.bark('sight', '¿Y esa señora qué? No, no, no, no.', 1.1); } },
       { to: { x: 51, z: 7.2 }, speed: 1.35, call: () => { N.humWant = true; } },
       { to: { x: 51, z: 14 }, speed: 1.2 },
     ], () => { G.director.hintT = 40; });
@@ -293,6 +337,11 @@ export class Story {
       if (ar?.id === 'linen' && !this.flags.linenCP && N.state !== 'chase' && N.state !== 'inspect') { this.flags.linenCP = true; this.save(); }
     }
     this.areaTime += dt;
+    if (ar && (ar.id === 'breaker' && !this.flags.panelSeen || ar.id === 'corridor' || ar.id === 'ward')) this.lostT = Math.min(this.lostT, 10);
+    this.lostHints(dt);
+    // left standing: the character notices before the player does
+    this.idleT = P.moving || P.inLocker || P.focusW > 0 || G.nurse.state === 'chase' ? 0 : this.idleT + dt;
+    if (this.idleT > 50) G.bark('idle', '¿Sigues ahí? Si te vas, yo me quedo aquí solito. Con ella.');
 
     // tutorial pacing
     this.moved += Math.hypot(P.pos.x - this.lastPos.x, P.pos.z - this.lastPos.z); this.lastPos = { ...P.pos };

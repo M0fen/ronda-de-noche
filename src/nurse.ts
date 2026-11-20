@@ -625,7 +625,7 @@ export class Nurse {
   switchOff(l: Lamp) { this.lamp = l; this.to('lightoff'); this.setGoal(l.stand); }
   runScript(steps: ScriptStep[], done?: () => void) { this.to('script'); this.script = { steps, i: 0, t: 0, done }; this.path = []; this.goal = null; }
   inspect(l: Locker, opts: { tutorial?: boolean; saw?: boolean } = {}) {
-    this.locker = l; this.tutorial = !!opts.tutorial; this.sawEnter = !!opts.saw; this.insp = 'approach'; this.inspT = 0; this.notHeld = 0;
+    this.locker = l; this.tutorial = !!opts.tutorial; this.sawEnter = !!opts.saw; this.insp = 'approach'; this.inspT = 0; this.notHeld = 0; this.peekLine = false;
     T.ev('inspect', { id: l.id, saw: !!opts.saw, you: this.game.player.inLocker === l });
     this.to('inspect'); this.setGoal(l.front);
   }
@@ -681,9 +681,13 @@ export class Nurse {
     }
   }
 
+  private peekLine = false;
   private suspicious(x: number, z: number, kind: string) {
     this.target.set(x, 0, z); this.targetKind = kind;
-    if (this.state !== 'suspicious') { this.to('suspicious'); this.path = []; }
+    if (this.state !== 'suspicious') {
+      this.to('suspicious'); this.path = [];
+      if (kind !== 'bottle' && kind !== 'sight' && this.dist < 16) this.say('v_teoi', 'Te oí. No te hagas el dormido.', 0.5);
+    }
   }
 
   private investigateTarget(n: Noise) {
@@ -796,6 +800,7 @@ export class Nurse {
     if (dd > 0.004) { const st = Math.min(dd, dt * 0.8); this.pos.x += (dx / dd) * st; this.pos.z += (dz / dd) * st; }
     if (this.insp === 'peek' || this.insp === 'open') {
       this.layer.bend.want = 1; this.glintBoost = this.layer.bend.w > 0.7 ? 0.8 : 0;
+      if (this.insp === 'peek' && this.inspT > 1.3 && !this.peekLine) { this.peekLine = true; this.say('v_ojitos', 'Cierra los ojitos. No duele.', inside ? 0.6 : 0.3); }
       if (this.insp === 'peek' && inside && this.layer.bend.w > 0.6) {
         if (!P.breath.held) this.notHeld += dt; else this.notHeld = Math.max(0, this.notHeld - dt * 0.5);
         if (P.torch.on) this.notHeld += dt * 0.8; // the beam lies right across the floor in front of her
@@ -1025,6 +1030,7 @@ export class Nurse {
         this.game.subtitleThrottled('iv', s === 'chase' ? 'Traquetea un portasueros' : 'Rechina un portasueros', { x: this.pos.x, z: this.pos.z }, 9);
       }
     }
+    A.herBreath(dt, A.herNear, s !== 'chase');
     this.stepAcc += this.speed * dt;
     if (this.stepAcc > (s === 'chase' ? 0.75 : 0.6)) { this.stepAcc = 0; A.nurseStep(s === 'chase' ? 1.6 : 1); }
 
@@ -1066,20 +1072,32 @@ export class Nurse {
   }
 
   // She speaks rarely: a recorded line from where she stands, captioned, never twice in a row.
-  private lastLine = '';
+  private lastLine = ''; private reflexT = -99;
   say(name: string, text: string, chance = 1) {
     if (this.voiceCD > 0 || name === this.lastLine || this.R() > chance || this.game.settings.reduced && name === 'v_aquiesta') return false;
     if (!this.game.audio.voiceLine(name)) return false;
     this.voiceCD = 9 + this.R() * 8; this.lastLine = name;
     this.game.speech(text, { x: this.pos.x, z: this.pos.z });
+    // a reflex: when her voice comes from somewhere close you can't see, your head turns a little toward it
+    const P = this.game.player;
+    if (!P.inLocker && this.dist < 10 && this.game.time - this.reflexT > 25 && !['chase', 'grab', 'inspect'].includes(this.state) && !this.game.dressing.ex.visible(this.rig.head.getWorldPosition(new THREE.Vector3()))) { this.reflexT = this.game.time; P.focusOn(this.rig.head.getWorldPosition(new THREE.Vector3()), 1.0, 0.3, false); }
     return true;
   }
 
   update(dt: number, noises: Noise[]) {
     this.t += dt;
     this.voiceCD -= dt;
-    if (this.state === 'patrol' && this.dist < 15 && this.R() < dt * 0.035) {
-      if (this.R() < 0.5) this.say('v_visitas', 'Las visitas eran hasta las ocho.'); else this.say('v_dormir', 'Ya es hora de dormir.');
+    if (this.state === 'patrol' && this.dist < 19 && this.R() < dt * 0.05) {
+      const inWard = this.game.story.area?.id === 'ward' || (this.pos.x < 28 && this.pos.z > 12 && this.pos.z < 30);
+      const pool: [string, string][] = [['v_visitas', 'Las visitas eran hasta las ocho.'], ['v_dormir', 'Ya es hora de dormir.'], ['v_rezo', 'Dios te salve, María, llena eres de gracia…']];
+      if (inWard) pool.push(['v_cuento', 'Cama uno, dormido. Cama dos, dormido. Cama tres…']);
+      const [n, t] = pool[Math.floor(this.R() * pool.length)];
+      this.say(n, t);
+    }
+    if (this.state === 'search' && this.t > 2.5 && this.dist < 22 && this.R() < dt * 0.07) {
+      const pool: [string, string][] = [['v_mijito', '¿Mijito? ¿Dónde te metiste?'], ['v_frio', 'Vuelve a la cama, que te vas a resfriar.'], ['v_cama', 'Shhh… ¿Qué haces fuera de la cama?']];
+      const [n, t] = pool[Math.floor(this.R() * pool.length)];
+      this.say(n, t);
     }
     if (this.state === 'frozen') { this.present(dt); return; }
     if (this.state !== 'script' && this.state !== 'grab') this.sense(dt, noises);

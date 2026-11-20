@@ -20,9 +20,10 @@ export class Input {
   private stickFullT = 0; private padLookT = 0; private smoothLook = { x: 0, y: 0 };
   private tMove = { x: 0, y: 0 }; private tLook = { x: 0, y: 0 };
   private stickId = -1; private lookId = -1; private stickOrigin = { x: 0, y: 0 }; private lookLast = { x: 0, y: 0 };
+  private sprintLock = false; private lockIdleT = 0; private btnLook = new Map<number, { x: number; y: number }>();
   enabled = true;
   freeLook = false; private cur = { x: 0.5, y: 0.5, in: false };
-  private lookDown = { x: 0, y: 0, t: 0, moved: 0 }; private stickBase: HTMLElement | null = null;
+  private lookDown = { x: 0, y: 0, t: 0, moved: 0 }; private stickBase: HTMLElement | null = null; private sprintBtn: HTMLElement | null = null;
 
   constructor(private settings: Settings, private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', e => this.key(e, true));
@@ -107,16 +108,28 @@ export class Input {
     };
     look.addEventListener('pointerup', endLook); look.addEventListener('pointercancel', endLook);
     root.querySelectorAll<HTMLElement>('[data-act]').forEach(btn => {
-      const act = btn.dataset.act!, hold = btn.dataset.mode === 'hold';
+      const act = btn.dataset.act!, hold = btn.dataset.mode === 'hold', toggle = btn.dataset.mode === 'toggle';
+      // the buttons you keep a thumb on (aim, crank, breath, run) still turn the view when that thumb slides
+      const steer = btn.dataset.look !== undefined;
       btn.addEventListener('pointerdown', e => {
-        e.preventDefault(); btn.setPointerCapture(e.pointerId); btn.classList.add('on'); tick();
+        e.preventDefault(); btn.setPointerCapture(e.pointerId); tick();
+        if (steer) this.btnLook.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (toggle) { if (act === 'sprint') { this.sprintLock = !this.sprintLock; btn.classList.toggle('on', this.sprintLock); } return; }
+        btn.classList.add('on');
         if (act === 'beam') this.wheel += 1;
         else if (act === 'throwhold') this.held.add('aim');
         else if (hold) this.held.add(act); else this.edge.add(act);
         if (act === 'crouch') this.held.add('crouchHold');
-        if (act === 'sprint-toggle') { this.edge.delete(act); if (this.held.has('sprint')) this.held.delete('sprint'); else this.held.add('sprint'); }
       });
-      const up = () => {
+      btn.addEventListener('pointermove', e => {
+        const last = this.btnLook.get(e.pointerId);
+        if (!last) return;
+        this.tLook.x += e.clientX - last.x; this.tLook.y += e.clientY - last.y;
+        this.btnLook.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      });
+      const up = (e: PointerEvent) => {
+        this.btnLook.delete(e.pointerId);
+        if (toggle) return;
         btn.classList.remove('on');
         if (act === 'throwhold') { this.held.delete('aim'); this.edge.add('throw'); }
         else if (hold) this.held.delete(act);
@@ -124,6 +137,7 @@ export class Input {
       };
       btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
     });
+    this.sprintBtn = root.querySelector('[data-act=sprint]');
   }
 
   read(dt: number): Act {
@@ -147,15 +161,26 @@ export class Input {
       a.lx += edge(this.cur.x) * 2.4 * dt * s.sens; a.ly += edge(this.cur.y) * 1.3 * dt * s.sens * inv;
     }
 
-    // touch: a full push on the stick breaks into a run; fast swipes turn further
-    a.mx += this.tMove.x; a.mz -= this.tMove.y;
+    // touch stick: a small dead zone (a resting thumb doesn't creep), full walking speed a little before the rim,
+    // and a run once you hold it pushed forward against the rim; the run then holds while you keep going forward
     const tm = Math.hypot(this.tMove.x, this.tMove.y);
-    this.stickFullT = tm > 0.93 && this.tMove.y < 0 ? this.stickFullT + dt : 0;
-    if (this.stickFullT > 0.35) a.sprint = true;
-    this.stickBase?.classList.toggle('sprint', this.stickFullT > 0.35);
-    const sw = Math.hypot(this.tLook.x, this.tLook.y), acc = 1 + Math.min(1.2, sw / 45);
-    const tx = this.tLook.x * 0.0052 * s.sens * acc, ty = this.tLook.y * 0.0052 * s.sens * acc * inv;
-    this.smoothLook.x += (tx - this.smoothLook.x) * 0.6; this.smoothLook.y += (ty - this.smoothLook.y) * 0.6;
+    if (tm > 0.12) { const k = Math.min(1, (tm - 0.12) / 0.73) / tm; a.mx += this.tMove.x * k; a.mz -= this.tMove.y * k; }
+    const fwdPush = -this.tMove.y;
+    this.stickFullT = tm > 0.9 && fwdPush > 0.6 ? this.stickFullT + dt : fwdPush > 0.45 && this.stickFullT > 0.25 ? this.stickFullT : 0;
+    const stickRun = this.stickFullT > 0.25;
+    // the run button is a toggle: it ends on a second tap, or once you have stood still for a moment
+    this.lockIdleT = this.sprintLock && tm < 0.12 ? this.lockIdleT + dt : 0;
+    if (this.lockIdleT > 0.9) this.sprintLock = false;
+    if (stickRun || (this.sprintLock && fwdPush > 0.3)) a.sprint = true;
+    this.sprintBtn?.classList.toggle('on', this.sprintLock);
+    this.stickBase?.classList.toggle('sprint', a.sprint && this.device === 'touch');
+    // touch look: the same turn for the same swipe at any frame rate; a quick flick turns further than a slow drag
+    // (by finger speed, not by how much fell into one frame), and up/down is a little calmer than left/right
+    const sw = Math.hypot(this.tLook.x, this.tLook.y), speed = sw / Math.max(dt, 1 / 240);
+    const acc = 1 + Math.min(1, Math.max(0, speed - 500) / 1400);
+    const tx = this.tLook.x * 0.0047 * s.sens * acc, ty = this.tLook.y * 0.0047 * 0.82 * s.sens * acc * inv;
+    const ks = 1 - Math.exp(-dt * 38);
+    this.smoothLook.x += (tx - this.smoothLook.x) * ks; this.smoothLook.y += (ty - this.smoothLook.y) * ks;
     if (this.device === 'touch') { a.lx += this.smoothLook.x; a.ly += this.smoothLook.y; }
 
     // gamepad (standard mapping)

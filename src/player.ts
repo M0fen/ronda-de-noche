@@ -30,9 +30,15 @@ export class Player {
   crouchToggle = false; crouchHeldT = 0; crouchMomentary = false; stepPhase = 0; stepCount = 0; roll = 0; fovKick = 0; bumpT = 0;
   bounce: THREE.PointLight; aimD = 6;
   stepAcc = 0; crankT = 0; darkT = 0; shake = 0; lowWarned = false; dipT = 0;
+  // the body under the camera: the torch hand trails the eyes a little, the chest breathes, a turn leans you
+  private lag = { yaw: 0, pitch: 0, ok: false }; private breathPh = 0; private turnLean = 0; private lastYaw = 0; private flinchT = 0; private runW = 0;
+  /** a start: a jolt of the head and a narrowing of the eyes (she shows up, she spots you) */
+  flinch(k = 1) { if (this.game.settings.reduced) k *= 0.3; this.flinchT = 0.42 * k; this.fovKick -= 7 * k; this.shake = Math.max(this.shake, 0.3 * k); }
   // a short, guided look at something: the view eases onto it, the field narrows and the edges soften
   focusW = 0; private focusT = 0; private focusDur = 0; private focusK = 1; private focusAt = new THREE.Vector3();
-  focusOn(p: THREE.Vector3, dur = 1.3, strength = 1) { this.focusAt.copy(p); this.focusDur = dur; this.focusT = 0; this.focusK = strength; }
+  /** visual: the zoom, blur and dimmer torch of a real look (off for a mere turn of the head toward a sound) */
+  focusVis = 1;
+  focusOn(p: THREE.Vector3, dur = 1.3, strength = 1, visual = true) { this.focusAt.copy(p); this.focusDur = dur; this.focusT = 0; this.focusK = strength; this.focusVis = visual ? 1 : 0; }
   private updateFocus(dt: number) {
     if (this.focusDur <= 0) { this.focusW = Math.max(0, this.focusW - dt * 4); return; }
     this.focusT += dt;
@@ -126,6 +132,8 @@ export class Player {
     if (this.inLocker) { this.updateLocker(dt, a); this.updateTorch(dt, a); this.syncCamera(dt); return; }
 
     this.yaw -= a.lx * (1 - this.focusW * 0.7); this.pitch = THREE.MathUtils.clamp(this.pitch - a.ly * (1 - this.focusW * 0.7), -1.35, 1.3);
+    // a guided look lets go as soon as you clearly look or walk away (after the first half second)
+    if (this.focusDur > 0 && this.focusT > 0.5 && this.focusT < this.focusDur - 0.45 && (Math.hypot(a.mx, a.mz) > 0.5 || Math.abs(a.lx) + Math.abs(a.ly) > 0.035)) this.focusDur = this.focusT + 0.45;
     this.updateFocus(dt);
     // tap = toggle; hold past a beat = momentary, standing back up on release
     if (a.crouch) { this.crouchToggle = !this.crouchToggle; this.crouchHeldT = 0; this.crouchMomentary = false; G.story.tut('crouch-done'); }
@@ -138,7 +146,7 @@ export class Player {
     if (this.sprinting) this.crouchToggle = false;
     this.crouch = this.crouchToggle && !this.sprinting;
     this.stamina = THREE.MathUtils.clamp(this.stamina + dt * (this.sprinting ? -1 / 6.5 : this.moving ? 0.1 : 0.2), 0, 1);
-    const speed = this.crouch ? 1.3 : this.sprinting ? 4.4 : this.aiming || this.torch.cranking ? 1.5 : 2.35;
+    const speed = (this.crouch ? 1.3 : this.sprinting ? 4.4 : this.aiming || this.torch.cranking ? 1.5 : 2.35) * (this.exhausted ? 0.86 : 1);
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw), rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
     const tx = (fx * a.mz + rx * a.mx) * speed, tz = (fz * a.mz + rz * a.mx) * speed;
     // quick to start, a touch of weight when stopping or changing direction
@@ -181,6 +189,11 @@ export class Player {
     const lateral = this.vel.x * rx + this.vel.z * rz;
     this.roll += (-lateral / 4.4 * 0.03 - this.roll) * Math.min(1, dt * 6);
     this.fovKick += ((this.sprinting && sp > 3 ? 6 : 0) - this.fovKick) * Math.min(1, dt * 4);
+    let yr = this.yaw - this.lastYaw; yr = Math.atan2(Math.sin(yr), Math.cos(yr)); this.lastYaw = this.yaw;
+    if (Math.abs(yr) > 0.6) yr = 0; // a cut, not a turn
+    const yawRate = dt > 0 ? yr / dt : 0;
+    this.turnLean += (THREE.MathUtils.clamp(yawRate * 0.011, -0.022, 0.022) * Math.min(1, sp / 2 + 0.35) - this.turnLean) * Math.min(1, dt * 5);
+    this.runW += ((this.sprinting && sp > 3 ? 1 : 0) - this.runW) * Math.min(1, dt * 4);
 
     this.updateTorch(dt, a);
     this.updateThrow(dt, a);
@@ -226,7 +239,7 @@ export class Player {
     // (the same falloff the light has), so a note on the wall, a painting or her face at arm's length
     // keeps its detail instead of burning out
     const near = THREE.MathUtils.clamp((this.aimD / 6) ** 1.6, 0.03, 1);
-    this.light.intensity = t.on ? lv.intensity * f * boxed * near * (1 - 0.4 * this.focusW) : 0; // looking closely, the eye adapts: detail instead of glare
+    this.light.intensity = t.on ? lv.intensity * f * boxed * near * (1 - 0.4 * this.focusW * this.focusVis) : 0; // looking closely, the eye adapts: detail instead of glare
     this.lens.color.setRGB(t.on ? 0.22 + 0.2 * f : 0.14, t.on ? 0.21 + 0.18 * f : 0.14, t.on ? 0.18 + 0.12 * f : 0.12);
     t.cos = Math.cos(lv.angle * 0.95); t.range = lv.range;
     if (t.on) {
@@ -326,7 +339,7 @@ export class Player {
     if (l.kind === 'bed') this.game.audio.bed(false); else this.game.audio.locker();
     this.noise(l.kind === 'bed' ? 3.5 : 5, 0.5, 'locker');
     this.game.nurse.onPlayerEnteredLocker(l);
-    if (l.kind === 'bed') this.game.bark('bed', 'Aquí abajo hay más polvo que donde la abuela.', 1.3); else this.game.bark('locker', 'Quietico. Quietico. Como cuando llegaba tarde a la casa.', 0.9);
+    if (l.kind === 'bed') this.game.bark('bed', 'Aquí abajo hay más polvo que donde la abuela. Y una chancleta. Ojalá sin dueño.', 1.3); else this.game.bark('locker', 'Quietico. Quietico. Como cuando llegaba tarde a la casa.', 0.9);
     this.game.ui.tutorialHint = true;
     this.game.story.tut('locker-in');
   }
@@ -398,8 +411,17 @@ export class Player {
     this.shake = Math.max(0, this.shake - dt * 2.2);
     const sh = this.game.settings.reduced ? this.shake * 0.3 : this.shake;
     const sx = (Math.random() - 0.5) * sh * 0.08, sy = (Math.random() - 0.5) * sh * 0.08;
-    cam.position.set(this.pos.x + Math.cos(this.yaw) * bx, this.eyeH + by + sy, this.pos.z - Math.sin(this.yaw) * bx);
-    cam.rotation.set(this.pitch + sy * 0.5, this.yaw + sx * 0.5, this.roll + bx * 0.25, 'YXZ');
+    // breathing: a slow rise and fall that grows when you are winded or afraid (none of it when reduced)
+    const G = this.game, red = G.settings.reduced;
+    const winded = Math.max(1 - this.stamina, this.exhausted ? 0.8 : 0), afraid = G.fear ?? 0;
+    this.breathPh += dt * (1.45 + winded * 2.6 + afraid * 1.6);
+    const bAmp = red ? 0 : (0.0032 + winded * 0.007 + afraid * 0.004) * (this.inLocker ? 0.6 : 1);
+    const brP = Math.sin(this.breathPh) * bAmp, brR = Math.sin(this.breathPh * 0.5 + 0.7) * bAmp * 0.55;
+    // a start: the head snaps back and settles
+    let fl = 0;
+    if (this.flinchT > 0) { this.flinchT = Math.max(0, this.flinchT - dt); fl = Math.sin((this.flinchT / 0.42) * Math.PI) * 0.045; }
+    cam.position.set(this.pos.x + Math.cos(this.yaw) * bx, this.eyeH + by + sy + brP * 0.9, this.pos.z - Math.sin(this.yaw) * bx);
+    cam.rotation.set(this.pitch + sy * 0.5 + brP + fl - this.runW * 0.025, this.yaw + sx * 0.5, this.roll + bx * 0.25 + brR + (red ? 0 : this.turnLean), 'YXZ');
     cam.updateMatrixWorld();
     this.eye.copy(cam.position);
     cam.getWorldDirection(this.fwd);
@@ -416,7 +438,18 @@ export class Player {
     }
     aim = THREE.MathUtils.clamp(aim, 0.6, 8);
     this.aimD = dt > 0 ? this.aimD + (aim - this.aimD) * Math.min(1, dt * 9) : aim;
-    this.lightTarget.position.set(0, 0, -this.aimD);
+    // the torch is in your hand, not glued to your eyes: it trails a quick turn by a hair and swings a little with
+    // your steps (it is what she sees, so the gameplay cone trails with it)
+    const L0 = this.lag;
+    if (!L0.ok || dt <= 0 || dt > 0.25) { L0.yaw = this.yaw; L0.pitch = this.pitch; L0.ok = true; }
+    let dyl = this.yaw - L0.yaw; dyl = Math.atan2(Math.sin(dyl), Math.cos(dyl));
+    const kl = Math.min(1, dt * 13);
+    L0.yaw += dyl * kl; L0.pitch += (this.pitch - L0.pitch) * kl;
+    let oy = L0.yaw - this.yaw; oy = Math.atan2(Math.sin(oy), Math.cos(oy));
+    oy = THREE.MathUtils.clamp(oy, -0.11, 0.11);
+    const op = THREE.MathUtils.clamp(L0.pitch - this.pitch, -0.08, 0.08);
+    const red2 = this.game.settings.reduced ? 0 : 1;
+    this.lightTarget.position.set((-Math.sin(oy) * this.aimD + bx * 0.35) * red2, (Math.sin(op) * this.aimD + by * 0.4) * red2, -this.aimD);
     this.light.getWorldPosition(this.torch.pos);
     this.torch.dir.copy(this.lightTarget.getWorldPosition(new THREE.Vector3())).sub(this.torch.pos).normalize();
     // torch sway

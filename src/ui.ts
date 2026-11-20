@@ -127,7 +127,7 @@ export class UI {
       move: 'Stick izq. · stick der.', torch: 'Y', beam: 'Cruceta', crank: 'Mantén X', crouch: 'B', interact: 'A', throw: 'Mantén LT · RT', breath: 'Mantén RB', journal: 'View', sprint: 'Mantén L3', map: 'Cruceta →',
     };
     const touch: Record<string, string> = {
-      move: 'Pulgar izquierdo · arrastra a la derecha', torch: 'LUZ', beam: 'HAZ', crank: 'Mantén MANIVELA', crouch: 'AGACHAR', interact: 'USAR', throw: 'Mantén LANZAR', breath: 'Mantén ALIENTO', journal: 'DIARIO', sprint: 'Mantén CORRER', map: 'DIARIO · Ver el plano',
+      move: 'Pulgar izquierdo · arrastra a la derecha', torch: 'LUZ', beam: 'HAZ', crank: 'Mantén MANIVELA', crouch: 'AGACHAR', interact: 'USAR', throw: 'Mantén LANZAR y suelta', breath: 'Mantén ALIENTO', journal: 'DIARIO', sprint: 'Stick al tope · CORRER', map: 'DIARIO · Ver el plano',
     };
     return (this.device === 'pad' ? pad : this.device === 'touch' ? touch : kbm)[act] ?? act;
   }
@@ -165,7 +165,7 @@ export class UI {
     if (this.subs.length && this.subs[this.subs.length - 1].el.textContent === text) { this.subs[this.subs.length - 1].t = 3.6; return; }
     const el = document.createElement('p'); el.textContent = text; el.className = text.startsWith('«') ? 'say' : text.startsWith('[') ? 'sfx' : ''; box.appendChild(el);
     this.subs.push({ el, t: 3.6 });
-    while (this.subs.length > 3) this.subs.shift()!.el.remove();
+    while (this.subs.length > (this.device === 'touch' ? 2 : 3)) this.subs.shift()!.el.remove(); // a phone has room for two
   }
   // a closer look: the line types itself out under the crosshair, then fades
   private th = { text: '', t: 0, dur: 0, shown: -1 };
@@ -173,9 +173,13 @@ export class UI {
     const el = $('thought');
     this.th = { text, t: 0, dur: secs ?? 2.4 + text.length * 0.052, shown: -1 };
     el.textContent = ''; el.hidden = false; el.style.opacity = '1';
+    $('subtitles').classList.add('thinking');
   }
   thoughtActive() { return this.th.text !== '' && this.th.t < this.th.dur; }
-  clearThought() { this.th.text = ''; $('thought').hidden = true; }
+  // reading something up close: the rest of the HUD steps back
+  private readingOn = false;
+  reading(on: boolean) { if (on !== this.readingOn) { this.readingOn = on; document.body.classList.toggle('reading', on); } }
+  clearThought() { this.th.text = ''; $('thought').hidden = true; $('subtitles').classList.remove('thinking'); }
   private updateThought(dt: number) {
     const th = this.th; if (!th.text) return;
     th.t += dt;

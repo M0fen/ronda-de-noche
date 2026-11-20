@@ -114,6 +114,10 @@ export const SIGNS = [
   { text: 'ESCALERAS · SÓTANO', sub: 'ANFITEATRO', x: 4, z: 8, y: 2.62, face: 'E' },
   { text: 'SILENCIO', sub: 'HOSPITAL', x: 30, z: 25, y: 2.25, face: 'E' },
   { text: 'SALIDA', sub: 'EMERGENCIA', x: 32, z: 48, y: 2.62, face: 'N', green: true },
+  { text: 'CUARTO ELÉCTRICO  →', sub: 'PLANTA Y TABLEROS · SOLO PERSONAL', x: 38.6, z: 36, y: 2.42, face: 'S' },
+  { text: 'URGENCIAS', sub: '←  CERRADO POR OBRAS', x: 20, z: 42.6, y: 2.42, face: 'E' },
+  { text: 'PROHIBIDO FUMAR', sub: 'SECRETARÍA DE SALUD DE RISARALDA', x: 47, z: 12, y: 2.3, face: 'S' },
+  { text: 'CAPILLA', sub: '←  POR LAS ESCALERAS', x: 46, z: 6, y: 2.5, face: 'S' },
 ];
 
 export type NoteKind = 'log' | 'record' | 'chart' | 'scrawl';

@@ -17,7 +17,7 @@ Teclas: 1–5 teletransporte, G fantasma, N congelar a la Enfermera, M ocultar e
 | Acción | Teclado y mouse | Control | Celular |
 |---|---|---|---|
 | Moverse · mirar | WASD · mouse | Stick izq. · stick der. (zona muerta radial, giro que acelera a fondo) | Pulgar izquierdo · arrastrar a la derecha (con aceleración) |
-| Correr | Shift | L3 | Correr, o empujar el stick al tope hacia adelante |
+| Correr | Shift | L3 | Correr (un toque alterna; se apaga al quedarte quieto), o empujar el stick al tope hacia adelante |
 | Agacharse | C: un toque alterna, mantener es momentáneo | B (igual) | Agachar (igual) |
 | Usar · esconderse · examinar | E | A | Usar, o un toque rápido cerca del centro de la pantalla |
 | Linterna · ancho del haz | F · rueda o Q | Y · cruceta | Luz · Haz |
@@ -30,11 +30,15 @@ El plano de evacuación muestra todo el piso tenue, entinta las salas que ya rec
 
 Al caminar contra una puerta cerrada, se abre sola, siempre hacia el lado contrario a quien la empuja (de golpe si vas corriendo: hace ruido). El haz de la linterna converge en lo que tienes en la mira y se ajusta a la distancia, para que lo que examinas de cerca no se queme.
 
-En celular los botones son redondos, en arco alrededor del pulgar derecho: el grande es Usar (se ilumina cuando hay algo que usar). Los botones cambian según el momento: Aliento solo en el casillero, Lanzar solo con botellas, la Manivela parpadea con la batería baja. En Ajustes → Pantalla táctil se elige el tamaño de los botones y el modo zurdo.
+En celular los botones son redondos, en arco alrededor del pulgar derecho: el grande es Usar (se ilumina cuando hay algo que usar). El stick tiene zona muerta y llega a la velocidad completa antes del borde; el giro con el dedo da la misma vuelta a cualquier cantidad de cuadros por segundo (un barrido rápido gira más que uno lento) y mientras sostienes Manivela, Lanzar o Aliento puedes deslizar ese mismo pulgar para seguir girando. Las lecciones salen arriba, entre el objetivo y los íconos; los pensamientos y las frases de ella, abajo entre los dos pulgares, sin montarse con el aviso de Usar. Los botones cambian según el momento: Aliento solo en el casillero, Lanzar solo con botellas, la Manivela parpadea con la batería baja. En Ajustes → Pantalla táctil se elige el tamaño de los botones y el modo zurdo.
+
+## Al empezar
+
+Las puertas se cierran a tu espalda, el personaje prende la linterna solo y la mirada se va a la luz ámbar que respira sobre la puerta del cuarto eléctrico (desde ahí se oye zumbar el tablero); un letrero en la pared norte apunta hacia allá. Si a los 30 segundos no has llegado, el personaje vuelve a señalar el camino; al minuto, saca el plano. Lo mismo para ir al Pabellón B después del tablero.
 
 ## Examinar
 
-Al examinar algo, la mirada se va hacia eso un momento: la vista se acerca, el campo se estrecha y los bordes se suavizan (lo mismo pasa la primera vez que la ves). Casi todo tiene una segunda frase, local y con humor (pereirano: el tinto, la hora Gaviria, El Diario del Otún, el jabón Rey, Sábados Felices…), y la primera vez que pasan ciertas cosas el personaje lo comenta («¡Corra, mijo, corra!»). Los cuadros cambian a tus espaldas: el fundador pierde el esparadrapo y no tiene ojos, el paisaje cafetero anochece con un recolector sin cara en cada surco, a las frutas del bodegón les salen ojos, la lámina volteada aparece de frente y en la promoción de 1974 aparece una hermana con la cabeza caída sobre el hombro.
+Al examinar algo, la mirada se queda en eso mientras lees (más tiempo cuanto más larga la frase): la vista se acerca, el campo se estrecha, los bordes se suavizan y el resto del HUD se apaga. Si caminas o miras para otro lado con decisión, la suelta. Lo mismo pasa la primera vez que la ves, y cuando ella habla cerca sin que la veas la cabeza se te va un poco hacia su voz. Casi todo tiene una segunda frase, local y con humor negro (pereirano: el tinto, la hora Gaviria, El Diario del Otún, el jabón Rey, Sábados Felices…), y varias le hablan a quien juega: le dicen la hora real de su ciudad, la fecha de hoy, su nombre (si lo escribió) en el dibujo de Mariana, la batería que le queda al celular (donde el navegador la da), le piden cerrar los ojos tres segundos —y algo susurra detrás—; al pausar, al volver de un agarrón, a altas horas o si deja el juego quieto, el personaje también lo nota. La primera vez que pasan ciertas cosas el personaje lo comenta («¡Corra, mijo, corra!»). Los cuadros cambian a tus espaldas: el fundador pierde el esparadrapo y no tiene ojos, el paisaje cafetero anochece con un recolector sin cara en cada surco, a las frutas del bodegón les salen ojos, la lámina volteada aparece de frente y en la promoción de 1974 aparece una hermana con la cabeza caída sobre el hombro.
 
 Casi todo se puede mirar de cerca con Usar: cuadros, camas, manos y escritos en las paredes, afiches, el reloj, el teléfono, la cajita de música, el radio, el televisor, las ventanas, las puertas del fondo. Cada cosa tiene varias frases (la segunda mirada no dice lo mismo) y algunas cambian cuando no las estás mirando: la foto de la promoción de 1974, el cuadro de la sabana, San Jorge. Otras hacen ruido y la atraen: el timbre de la recepción, la cajita de música, el radio y el teléfono, que suena cuando cruzas la recepción con el fusible. Con *Sustos reducidos* se quitan los sustos visuales (el reflejo en el televisor, las velas que se apagan, los ojos en la ventanilla de cirugía).
 
@@ -85,8 +89,9 @@ Todo el audio se sintetiza, pero cualquier archivo `src/sfx/<nombre>.mp3` se emp
 | `theme` | Canción del título (bucle de 55,94 s con la cola superpuesta) |
 | `vx_cama` … `vx_aquiesta` | La capa espectral de cada línea de ella, horneada aparte (susurros dobles con la fase revuelta, una octava abajo, un brillo inarmónico arriba, copias con desplazamiento de frecuencia que baten contra la voz, la última sílaba repitiéndose más grave y una cola oscura): suena dentro de tu cabeza mientras la voz seca viene de donde está ella |
 | `v_cama`, `v_visitas`, `v_dormir`, `v_ahi`, `v_quieto`, `v_aquiesta` | Su voz: «Shhh… ¿Qué haces fuera de la cama?», «Las visitas eran hasta las ocho», «Ya es hora de dormir», «Yo sé que estás ahí», «No te muevas…», «Ahí estás». Suenan desde donde está ella (con cadena espectral: doble fantasma, respiración en reversa y eco en tu cabeza), con subtítulo |
+| `v_mijito`, `v_teoi`, `v_cuento`, `v_rezo`, `v_frio`, `v_ojitos` | Más de ella, clonada de las anteriores: «¿Mijito? ¿Dónde te metiste?» y «Vuelve a la cama, que te vas a resfriar» cuando te busca, «Te oí. No te hagas el dormido» cuando oye un ruido tuyo, «Cama uno, dormido…» y el avemaría mientras hace la ronda, «Cierra los ojitos. No duele» en la rejilla. Lo que suena dentro de tu cabeza crece cuanto más cerca está; de lejos, la sala la envuelve en eco. Sus pasos llevan el taconeo de un zapato de enfermera y, a pocos pasos y callada, se le oye respirar detrás del tapabocas |
 
-Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería de Splice de Carlos; la voz es ElevenLabs (voz «Isabella») generada en Higgsfield; los de interfaz son Mirelo (Higgsfield), recortados y limpiados.
+Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería de Splice de Carlos; la voz es ElevenLabs (voz «Isabella») generada en Higgsfield, y las seis líneas nuevas, Seed Audio clonando esa misma voz; los de interfaz son Mirelo (Higgsfield), recortados y limpiados.
 
 ## Demo en Vercel y registro de partidas
 

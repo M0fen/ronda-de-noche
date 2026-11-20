@@ -20,7 +20,7 @@
 }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--bone); font: 15px/1.5 var(--type); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+body { margin: 0; background: var(--bg); color: var(--bone); font: 15px/1.5 var(--type); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 #app { position: fixed; inset: 0; }
 #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; background: var(--bg); }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
@@ -187,6 +187,10 @@ kbd { font: 700 12px/1 var(--type); border: 1px solid rgba(230, 223, 207, 0.45);
 #tutorial.pop { animation: rise 0.6s ease both; }
 #tutorial kbd { border-color: var(--nicotine); color: var(--nicotine); }
 #subtitles #thought { order: -1; max-width: min(36rem, 100%); margin: 0 0 6px; padding: 0; background: none; font: italic 400 15px/1.45 var(--type); color: var(--bone); text-shadow: 0 1px 2px #000, 0 0 14px rgba(0, 0, 0, 0.95); }
+/* reading something up close: the rest of the HUD steps back and the line gets a soft dark band */
+#objective, #toast { transition: opacity 0.45s; }
+body.reading #objective, body.reading #kit, body.reading #toast, body.reading #noise { opacity: 0.16 !important; }
+body.reading #subtitles #thought { text-shadow: 0 1px 2px #000, 0 0 18px rgba(0, 0, 0, 1), 0 0 34px rgba(0, 0, 0, 0.9); }
 #subtitles #thought::before { content: ''; display: block; width: 26px; height: 1px; margin: 0 auto 7px; background: var(--alarm); opacity: 0.8; }
 #subtitles { position: absolute; left: 0; right: 0; bottom: calc(clamp(100px, 24vh, 180px) + env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; gap: 2px; padding: 0 12%; }
 #subtitles p { margin: 0; font-size: 14px; color: var(--bone); background: rgba(4, 5, 4, 0.62); padding: 3px 10px; text-align: center; }
@@ -248,10 +252,11 @@ body.tb-lg #touch { --tb: 64px; --tbig: 86px; --tsm: 50px; --gap: 12px; }
 .tpad { position: absolute; right: max(14px, env(safe-area-inset-right, 0px)); bottom: max(14px, env(safe-area-inset-bottom, 0px)); width: 240px; height: 200px; pointer-events: none; }
 .tb { position: absolute; display: grid; place-content: center; justify-items: center; gap: 2px; width: var(--tb); height: var(--tb); padding: 0; border-radius: 50%; border: 1px solid rgba(230, 223, 207, 0.26); background: radial-gradient(circle at 50% 35%, rgba(26, 28, 25, 0.6), rgba(5, 6, 5, 0.5)); color: var(--bone); pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform 0.08s, background-color 0.12s, border-color 0.12s, opacity 0.2s; }
 .tb svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.tb span { font: 700 8px/1 var(--type); letter-spacing: 0.07em; text-transform: uppercase; color: var(--ash); }
+.tb span { font: 700 8.5px/1 var(--type); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ash); }
 .tb.big svg { width: 32px; height: 32px; }
 .tb.sm svg { width: 20px; height: 20px; }
-.tb.sm span { display: none; }
+.tb.sm span { font-size: 7px; letter-spacing: 0.04em; }
+.ttop .tb.sm span { display: none; }
 .tb.on { transform: scale(0.92); background: rgba(201, 176, 106, 0.3); border-color: var(--nicotine); }
 .tb.big { width: var(--tbig); height: var(--tbig); }
 .tb.sm { width: var(--tsm); height: var(--tsm); }
@@ -262,8 +267,8 @@ body.can-use .tpad .use span { color: var(--nicotine); }
 .tpad [data-act=crouch] { right: calc(var(--tbig) * 0.82 + var(--gap)); bottom: calc(var(--tbig) * 0.82 + var(--gap)); }
 .tpad [data-act=sprint] { right: calc((var(--tbig) - var(--tb)) / 2); bottom: calc(var(--tbig) + var(--gap) * 1.4); }
 .tpad [data-act=beam] { right: calc(var(--tbig) + var(--tb) + var(--gap) * 2); bottom: 2px; }
-.tpad [data-act=crank] { right: calc(var(--tbig) + var(--tb) + var(--gap) * 1.6); bottom: calc(var(--tsm) + var(--gap) * 2); }
-.tpad [data-act=throwhold] { right: calc(var(--tbig) * 1.55 + var(--gap) * 2); bottom: calc(var(--tbig) * 1.2 + var(--gap) * 2); }
+.tpad [data-act=crank] { right: calc(var(--tbig) + var(--tb) + var(--gap) * 1.8); bottom: calc(var(--tb) + var(--gap) * 1.2); }
+.tpad [data-act=throwhold] { right: calc(var(--tbig) * 1.55 + var(--gap) * 2); bottom: calc(var(--tbig) * 1.2 + var(--gap) * 2 + 18px); }
 .tpad [data-act=breath] { right: 0; bottom: calc(var(--tbig) + var(--gap) * 1.4); }
 body.low-batt .tpad [data-act=crank] { border-color: var(--nicotine); animation: nudge 1.6s ease-in-out infinite; }
 @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(201, 176, 106, 0); } 50% { box-shadow: 0 0 0 6px rgba(201, 176, 106, 0.18); } }
@@ -282,13 +287,19 @@ body.lefty .tpad { right: auto; left: max(14px, env(safe-area-inset-left, 0px));
 body.lefty .tpad .tb > * { transform: scaleX(-1); }
 body[data-device=touch] #crosshair { opacity: 0.6; }
 body[data-device=touch] #objective { max-width: 30vw; }
-body[data-device=touch] #tutorial, body[data-device=touch] #subtitles { left: calc(170px + env(safe-area-inset-left, 0px)); right: calc(260px + env(safe-area-inset-right, 0px)); padding: 0; }
-body[data-device=touch] #subtitles { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
-body[data-device=touch] #tutorial { bottom: calc(clamp(96px, 30vh, 150px) + env(safe-area-inset-bottom, 0px)); }
+/* phones: one thing per place. Lessons up top between the objective and the buttons; her words and your
+   thoughts in the band between the thumbs; nothing stacks on the prompt under the crosshair */
+body[data-device=touch] #subtitles { left: calc(150px + env(safe-area-inset-left, 0px)); right: calc(256px + env(safe-area-inset-right, 0px)); padding: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+body[data-device=touch] #tutorial { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; left: calc(min(30vw, 260px) + 26px + env(safe-area-inset-left, 0px)); right: calc(118px + env(safe-area-inset-right, 0px)); padding: 6px 10px; justify-content: flex-start; font-size: 12px; line-height: 1.35; background: linear-gradient(90deg, rgba(4, 5, 4, 0.6), rgba(4, 5, 4, 0.2)); border-left: 2px solid var(--nicotine); }
+body[data-device=touch] #subtitles #thought { font-size: 13.5px; line-height: 1.38; margin-bottom: 4px; }
+body[data-device=touch] #subtitles p { font-size: 12.5px; }
+body[data-device=touch] #subtitles.thinking p.sfx { display: none; }
+body[data-device=touch] #area-card { top: 24%; }
+body.in-locker #area-card { display: none; }
 body[data-device=touch] #kit { left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 body[data-device=touch].lefty #kit { left: auto; right: max(16px, env(safe-area-inset-right, 0px)); }
-body[data-device=touch] #breath { top: calc(64px + env(safe-area-inset-top, 0px)); bottom: auto; }
-body[data-device=touch].lefty #tutorial, body[data-device=touch].lefty #subtitles { left: calc(260px + env(safe-area-inset-left, 0px)); right: calc(170px + env(safe-area-inset-right, 0px)); }
+body[data-device=touch] #breath { top: calc(96px + env(safe-area-inset-top, 0px)); bottom: auto; }
+body[data-device=touch].lefty #subtitles { left: calc(256px + env(safe-area-inset-left, 0px)); right: calc(150px + env(safe-area-inset-right, 0px)); }
 body[data-device=touch] #toast { top: calc(58px + env(safe-area-inset-top, 0px)); }
 
 #rotate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg); text-align: center; padding: 24px; }

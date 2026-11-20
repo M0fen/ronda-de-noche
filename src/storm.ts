@@ -47,6 +47,7 @@ export class Storm {
     setTimeout(() => {
       this.masking = 3.5;
       const G = this.G;
+      if (G.mode === 'play' && near > 0.82) G.player.flinch(0.45); // a crack right overhead makes you jump
       if (G.mode === 'play' && G.story.flags.sighting && !G.story.flags.thunderTip) { G.story.flags.thunderTip = true; G.subtitle('Truena. Por un momento, nadie oye tus pasos.'); }
     }, (delay + 0.25 + (1 - near) * 2.6) * 1000);
   }

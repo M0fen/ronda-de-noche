@@ -205,6 +205,7 @@ export class Game {
   resume() {
     if (this.mode !== 'pause') return;
     this.mode = 'play'; this.ui.show(''); this.audio.suspend(false); this.lock(); T.ev('resume');
+    if (this.stats.time > 20) this.bark('pause', 'Pausaste. Ella no.', 0.7);
   }
   openNote(n: Note, fromJournal = false) {
     if (!fromJournal) T.ev('note', n.def.id);
@@ -247,7 +248,7 @@ export class Game {
     this.audio.muffleTarget = 20000;
     this.fear = 0;
     this.mode = 'play'; this.ui.show(''); this.ui.hud(true); this.lock();
-    this.bark('retry', 'Otra vez. Ahora sin ser tan boleta.', 1.2);
+    this.bark('retry', 'Otra vez. Ella ya me apuntó en la pared: una rayita. Le faltan cuatro pa\' completar el cinco.', 1.2);
   }
   quit() { location.reload(); }
   restartAll() { location.reload(); }
@@ -269,7 +270,7 @@ export class Game {
     this.cues.clear();
   }
   onChase() {
-    T.ev('chase'); this.bark('chase', '¡Corra, mijo, corra!');
+    T.ev('chase'); this.bark('chase', '¡Corra, mijo, corra!'); this.player.flinch(1);
     this.audio.stinger(false);
     this.input.rumble(0.4, 0.8, 300);
     if (!this.story.tutDone.has('run')) this.story.queue('run');
@@ -357,9 +358,10 @@ export class Game {
     const target = this.focus();
     if (a.interact && target && !P.inLocker) { target.use(); a.interact = false; this.input.rumble(0, 0.12, 40); }
     P.update(dt, a);
-    const fov = this.settings.fov + P.fovKick - 11 * P.focusW;
+    const fov = this.settings.fov + P.fovKick - 11 * P.focusW * P.focusVis;
     if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
-    this.post.u.uFocus.value = P.focusW;
+    this.post.u.uFocus.value = P.focusW * P.focusVis;
+    this.ui.reading(P.focusW * P.focusVis > 0.3 && this.ui.thoughtActive());
     this.markFocus(target);
     if (this.mode !== 'play') return;
     if (N.rig.root.visible) N.update(dt, this.noises);
@@ -581,7 +583,7 @@ export class Game {
     const P = this.player;
     du.uCam.value.copy(P.eye); du.uTime.value = this.time;
     du.uTorchPos.value.copy(P.torch.pos); du.uTorchDir.value.copy(P.torch.dir);
-    du.uTorchCos.value = Math.cos(this.player.light.angle * 0.55); du.uTorchOn.value = P.torch.on ? P.torch.flick : 0; du.uTorchRange.value = P.torch.range; // motes only in the hot spot
+    du.uTorchCos.value = P.torch.cos; du.uTorchOn.value = P.torch.on ? P.torch.flick * Math.min(1.3, P.light.intensity / 55) : 0; du.uTorchRange.value = P.torch.range; // the whole beam, dimmer at its edge
     u.uTime.value = this.time;
     T.tick(dt);
     if (this.audio.ctx) { this.audio.listener(P.eye, P.fwd); this.audio.update(dt, P.eye, this.mode !== 'play'); }
