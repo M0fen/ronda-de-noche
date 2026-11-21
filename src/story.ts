@@ -14,19 +14,28 @@ interface Snapshot {
   fuseTaken: boolean; installed: number; flags: Record<string, any>; phase: number; objective: string; lures: number; hides: number;
 }
 
-// Tutorial beats: shown once, in order of relevance, never stacked.
-const TUT: Record<string, { act: string; text: string }> = {
-  move: { act: 'move', text: 'Moverse · mirar alrededor' },
-  torch: { act: 'torch', text: 'Encender o apagar la linterna' },
-  beam: { act: 'beam', text: 'Cambiar el haz. A un haz estrecho le cuesta más verlo' },
-  crank: { act: 'crank', text: 'Dale manivela para cargar la linterna. El zumbido se oye lejos' },
-  crouch: { act: 'crouch', text: 'Agáchate. Tus pasos dejan de sonar' },
-  throw: { act: 'throw', text: 'Apunta y lanza. El vidrio roto la atrae hacia allá' },
-  locker: { act: 'interact', text: 'Algo viene. Escóndete en un casillero' },
-  breath: { act: 'breath', text: 'Aguanta la respiración mientras esté cerca. La luz de la linterna se escapa por la rejilla. Suelta cuando vuelva a tararear' },
-  journal: { act: 'journal', text: 'Diario: notas y objetivo' },
-  map: { act: 'map', text: 'Plano: dónde estás, a dónde ir (el círculo rojo) y dónde esconderte' },
-  run: { act: 'sprint', text: 'Corre y rompe su línea de visión. Las puertas y las esquinas ayudan' },
+// Tutorial beats: shown once, in order of relevance, never stacked. `short` is the phone's version: the chip
+// shows the button's name, the text fits two lines in the strip between the objective and the buttons.
+const TUT: Record<string, { act: string; text: string; short?: string }> = {
+  move: { act: 'move', text: 'Moverse · mirar alrededor', short: 'Izquierdo: caminar · derecho: mirar' },
+  torch: { act: 'torch', text: 'Encender o apagar la linterna', short: 'Prende o apaga la linterna' },
+  beam: { act: 'beam', text: 'Cambiar el haz. A un haz estrecho le cuesta más verlo', short: 'Haz estrecho: le cuesta más verte' },
+  crank: { act: 'crank', text: 'Dale manivela para cargar la linterna. El zumbido se oye lejos', short: 'Mantenla para cargar la luz. Se oye lejos' },
+  crouch: { act: 'crouch', text: 'Agáchate. Tus pasos dejan de sonar', short: 'Tus pasos dejan de sonar' },
+  throw: { act: 'throw', text: 'Apunta y lanza. El vidrio roto la atrae hacia allá', short: 'Mantén, apunta y suelta: el vidrio la atrae' },
+  locker: { act: 'interact', text: 'Algo viene. Escóndete en un casillero', short: 'Algo viene. Escóndete en un casillero' },
+  breath: { act: 'breath', text: 'Aguanta la respiración mientras esté cerca. La luz de la linterna se escapa por la rejilla. Suelta cuando vuelva a tararear', short: 'Mantenlo mientras esté cerca. Apaga la luz' },
+  journal: { act: 'journal', text: 'Diario: notas y objetivo', short: 'Tus notas y el objetivo' },
+  map: { act: 'map', text: 'Plano: dónde estás, a dónde ir (el círculo rojo) y dónde esconderte', short: 'Ver el plano: dónde estás y a dónde ir' },
+  run: { act: 'sprint', text: 'Corre y rompe su línea de visión. Las puertas y las esquinas ayudan', short: 'O el stick al tope. Rompe su línea de visión' },
+};
+// The objective in two lines for a phone's HUD (the diary keeps the whole sentence)
+const OBJ_SHORT: Record<string, string> = {
+  'Encuentra el tablero eléctrico: al fondo de la recepción, bajo la luz ámbar.': 'Tablero: al fondo de la recepción, luz ámbar',
+  'Encuentra los cuatro fusibles. Empieza por el Pabellón B, al norte por el pasillo principal. (0/4)': 'Fusibles 0/4: Pabellón B, al norte por el pasillo',
+  'Lleva el fusible al cuarto eléctrico. La puerta de la lencería hacia recepción se destranca desde este lado.': 'Lleva el fusible al tablero, por la lencería',
+  'Fusible 1 de 4 restaurado. Al norte, las puertas de cirugía empiezan a zumbar.': 'Fusible 1 de 4 restaurado',
+  'Explora. Cirugía, el anfiteatro y el archivo se abren en el juego completo.': 'Explora: lo demás llega en el juego completo',
 };
 
 export class Story {
@@ -51,7 +60,7 @@ export class Story {
 
   setObjective(text: string) {
     if (text !== this.objective) { T.ev('obj', text); T.progress({ obj: text }); if (this.objective && this.game.mode === 'play') this.game.audio.write(); }
-    this.objective = text; this.game.ui.objective(text);
+    this.objective = text; this.game.ui.objective(text, OBJ_SHORT[text]);
   }
 
   // ---- interactables -------------------------------------------------------------
@@ -273,7 +282,7 @@ export class Story {
     if (this.lostT > 30 && !this.flags[k + '1']) {
       this.flags[k + '1'] = true;
       const looked = this.glanceAtWay(2.2);
-      G.ui.objective(this.objective);
+      G.ui.objective(this.objective, OBJ_SHORT[this.objective]);
       if (goal === 'panel') G.ui.thought(looked ? 'La luz ámbar. Allá, al fondo de la recepción.' : 'El tablero estaba en el cuarto eléctrico, al fondo de la recepción. Donde parpadea la luz ámbar.');
       else G.ui.thought(looked ? 'El pasillo principal. El Pabellón B queda al norte.' : 'El Pabellón B queda al norte, por el pasillo principal.');
     }

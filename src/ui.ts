@@ -6,6 +6,8 @@ import { KEY_LABELS, DEFAULT_KEYS, keyName, saveSettings } from './settings';
 import { RECORDS_TOTAL, AREAS, MAP } from './content';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+// a slider's filled part, for the custom track
+const fill = (i: HTMLInputElement) => i.style.setProperty('--p', `${((+i.value - +i.min) / (+i.max - +i.min)) * 100}%`);
 
 // Seeded 2D noise for the CSS: a speckle mask that wears the stencil type,
 // and paper grain with foxing for the notes. Generated once, no image files.
@@ -34,7 +36,7 @@ export class UI {
   device: Device = 'kbm';
   private subs: { el: HTMLElement; t: number }[] = [];
   private toastT = 0; private areaT = 0; private objT = 0;
-  private tutDef: { act: string; text: string } | null = null;
+  private tutDef: { act: string; text: string; short?: string } | null = null;
   private screen = '';
   settingsBack: () => void = () => { };
   tutorialHint = false;
@@ -97,11 +99,19 @@ export class UI {
     $<HTMLInputElement>('cal-bright').addEventListener('input', e => { G.settings.bright = +(e.target as HTMLInputElement).value; this.calPreview(); G.applySettings(); });
     on('pause-touch', () => G.pause());
     on('journal-touch', () => G.openJournalFromPlay());
+    // a tap beside the paper puts it down; a tap on the intro skips it (a phone has no «any key»)
+    const backdrop: [string, () => void][] = [['note', () => G.closeNote()], ['map', () => G.closeMap()], ['journal', () => G.closeJournal()]];
+    for (const [id, fn] of backdrop) $(id).addEventListener('click', e => { if (e.target === e.currentTarget) fn(); });
+    $('intro').addEventListener('pointerdown', () => { if (G.mode === 'intro') G.beginPlay(); });
   }
+
+  private btns: Record<string, HTMLElement> = {};
+  private btn(act: string) { return this.btns[act] ??= document.querySelector<HTMLElement>(`#touch [data-act=${act}]`)!; }
 
   get current() { return this.screen; }
   show(id: string) {
     this.screen = id; document.body.dataset.screen = id;
+    document.body.classList.toggle('screen-open', !!id); // the HUD and the thumbs' buttons step out from under any screen
     document.querySelectorAll<HTMLElement>('.screen').forEach(s => { s.hidden = s.id !== id; });
     const first = id ? $(id)?.querySelector<HTMLElement>('button, input, select') : null;
     if (first && this.device !== 'touch') setTimeout(() => { this.quietFocus = true; first.focus({ preventScroll: true }); this.quietFocus = false; }, 30);
@@ -115,6 +125,7 @@ export class UI {
     document.body.dataset.device = d;
     if (!$('hud').hidden) $('touch').hidden = d !== 'touch';
     if (this.tutDef) this.tutorial('x', this.tutDef);
+    if (this.obj.text) $('objective-text').textContent = d === 'touch' ? this.obj.short : this.obj.text;
   }
 
   glyph(act: string) {
@@ -127,22 +138,24 @@ export class UI {
       move: 'Stick izq. · stick der.', torch: 'Y', beam: 'Cruceta', crank: 'Mantén X', crouch: 'B', interact: 'A', throw: 'Mantén LT · RT', breath: 'Mantén RB', journal: 'View', sprint: 'Mantén L3', map: 'Cruceta →',
     };
     const touch: Record<string, string> = {
-      move: 'Pulgar izquierdo · arrastra a la derecha', torch: 'LUZ', beam: 'HAZ', crank: 'Mantén MANIVELA', crouch: 'AGACHAR', interact: 'USAR', throw: 'Mantén LANZAR y suelta', breath: 'Mantén ALIENTO', journal: 'DIARIO', sprint: 'Stick al tope · CORRER', map: 'DIARIO · Ver el plano',
+      move: 'PULGARES', torch: 'LUZ', beam: 'HAZ', crank: 'MANIVELA', crouch: 'AGACHAR', interact: 'USAR', throw: 'LANZAR', breath: 'ALIENTO', journal: 'DIARIO', sprint: 'CORRER', map: 'DIARIO',
     };
     return (this.device === 'pad' ? pad : this.device === 'touch' ? touch : kbm)[act] ?? act;
   }
 
-  objective(text: string) {
-    $('objective-text').textContent = text;
+  private obj = { text: '', short: '' };
+  objective(text: string, short?: string) {
+    this.obj = { text, short: short ?? text };
+    $('objective-text').textContent = this.device === 'touch' ? this.obj.short : text;
     $('objective').classList.add('fresh'); this.objT = 6;
     $('journal-objective').textContent = text;
   }
-  tutorial(id: string, def: { act: string; text: string } | null) {
+  tutorial(id: string, def: { act: string; text: string; short?: string } | null) {
     this.tutDef = id ? def : null;
     const el = $('tutorial');
     if (!def || !id) { el.hidden = true; return; }
     $('tut-key').textContent = this.glyph(def.act);
-    $('tut-text').textContent = def.text;
+    $('tut-text').textContent = this.device === 'touch' ? def.short ?? def.text : def.text;
     el.hidden = false;
     el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
   }
@@ -173,13 +186,13 @@ export class UI {
     const el = $('thought');
     this.th = { text, t: 0, dur: secs ?? 2.4 + text.length * 0.052, shown: -1 };
     el.textContent = ''; el.hidden = false; el.style.opacity = '1';
-    $('subtitles').classList.add('thinking');
+    $('subtitles').classList.add('thinking'); document.body.classList.add('thinking');
   }
   thoughtActive() { return this.th.text !== '' && this.th.t < this.th.dur; }
   // reading something up close: the rest of the HUD steps back
   private readingOn = false;
   reading(on: boolean) { if (on !== this.readingOn) { this.readingOn = on; document.body.classList.toggle('reading', on); } }
-  clearThought() { this.th.text = ''; $('thought').hidden = true; $('subtitles').classList.remove('thinking'); }
+  clearThought() { this.th.text = ''; $('thought').hidden = true; $('subtitles').classList.remove('thinking'); document.body.classList.remove('thinking'); }
   private updateThought(dt: number) {
     const th = this.th; if (!th.text) return;
     th.t += dt;
@@ -238,10 +251,14 @@ export class UI {
     const st = $('stamina');
     st.hidden = P.stamina > 0.985;
     if (!st.hidden) { $('stamina-fill').style.width = `${P.stamina * 100}%`; st.classList.toggle('spent', P.exhausted); }
+    if (this.device === 'touch') { // on a phone the meters live on the buttons they belong to
+      const run = this.btn('sprint'); run.style.setProperty('--m', P.stamina.toFixed(3)); run.classList.toggle('meter-on', P.stamina <= 0.985); run.classList.toggle('spent', P.exhausted);
+    }
     $('battery').classList.toggle('cranking', P.torch.cranking);
     const inL = !!P.inLocker && P.lockT >= 1;
     $('breath').hidden = !inL;
     if (inL) { $('breath-fill').style.width = `${P.breath.meter * 100}%`; $('breath').classList.toggle('held', P.breath.held); $('breath').classList.toggle('lock', P.breath.lock); }
+    if (inL && this.device === 'touch') { const b = this.btn('breath'); b.style.setProperty('--m', P.breath.meter.toFixed(3)); b.classList.add('meter-on'); b.classList.toggle('spent', P.breath.lock); }
     document.body.classList.toggle('in-locker', inL);
     $('lockhint').hidden = !(G.mode === 'play' && this.device === 'kbm' && !document.pointerLockElement && !G.input.freeLook);
     document.body.classList.toggle('has-bottles', P.bottles > 0);
@@ -249,7 +266,7 @@ export class UI {
     document.body.classList.toggle('can-use', !$('interact').hidden);
   }
 
-  calPreview() { $('cal-symbol').style.filter = `brightness(${this.game.settings.bright})`; ($('cal-bright') as HTMLInputElement).value = String(this.game.settings.bright); }
+  calPreview() { $('cal-symbol').style.filter = `brightness(${this.game.settings.bright})`; const i = $('cal-bright') as HTMLInputElement; i.value = String(this.game.settings.bright); fill(i); }
 
   openNote(n: Note) {
     const el = $('note');
@@ -285,14 +302,13 @@ export class UI {
   openMap() {
     const G = this.game, L = G.level, S = G.story, P = G.player, pr = G.props;
     const cv = $('map-canvas') as HTMLCanvasElement, g = cv.getContext('2d')!;
-    const W = cv.width, H = cv.height;
-    g.clearRect(0, 0, W, H);
-    let x0 = 99, x1 = 0, z0 = 99, z1 = 0;
-    for (const c of L.cells) if (c.kind !== 'wall' || MAP[c.cz][c.cx] === '=' || MAP[c.cz][c.cx] === 'X') { x0 = Math.min(x0, c.cx); x1 = Math.max(x1, c.cx); z0 = Math.min(z0, c.cz); z1 = Math.max(z1, c.cz); }
-    x0 -= 1; z0 -= 1; x1 += 1; z1 += 1;
-    const cs = Math.floor(Math.min((W - 40) / (x1 - x0 + 1), (H - 40) / (z1 - z0 + 1)));
-    const ox = Math.round((W - cs * (x1 - x0 + 1)) / 2) - x0 * cs, oz = Math.round((H - cs * (z1 - z0 + 1)) / 2) - z0 * cs;
-    const px = (wx: number) => ox + (wx / 2) * cs, pz = (wz: number) => oz + (wz / 2) * cs;
+    $('map-close-key').textContent = this.device === 'pad' ? 'B' : this.device === 'touch' ? '' : `${keyName(this.game.settings.keys.map)} · Esc`;
+    this.show('map');
+    // drawn at the size it is shown, in CSS pixels, so the names stay sharp and legible on a phone
+    const short = matchMedia('(max-height: 500px)').matches, dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    const W = Math.max(240, cv.clientWidth || 760), H = short ? Math.max(140, cv.clientHeight || 300) : Math.round(W * 500 / 760);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
     const areaOf = (cx: number, cz: number) => AREAS.find(a => cx >= a.x0 && cx <= a.x1 && cz >= a.z0 && cz <= a.z1);
     const seen = new Set<number>();
     for (const c of L.cells) {
@@ -301,6 +317,29 @@ export class UI {
       if ((a && S.seenAreas.has(a.id)) || S.visited.has(k)) seen.add(k);
     }
     for (const k of [...S.visited]) { const cx = k % L.w, cz = Math.floor(k / L.w); for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const n = L.cell(cx + dx, cz + dz); if (n && n.kind !== 'wall') seen.add(n.cz * L.w + n.cx); } }
+    const fuseHunt = !!S.flags.panelSeen && !pr.fuse.taken, toPanel = !S.flags.panelSeen || P.hasFuse, ward = AREAS.find(r => r.id === 'ward')!;
+    const goal = toPanel ? { x: pr.panel.pos.x, z: pr.panel.pos.z } : fuseHunt ? { x: ward.x0 + ward.x1 + 1, z: ward.z0 + ward.z1 + 1 } : null;
+    let x0 = 99, x1 = 0, z0 = 99, z1 = 0;
+    for (const c of L.cells) if (c.kind !== 'wall' || MAP[c.cz][c.cx] === '=' || MAP[c.cz][c.cx] === 'X') { x0 = Math.min(x0, c.cx); x1 = Math.max(x1, c.cx); z0 = Math.min(z0, c.cz); z1 = Math.max(z1, c.cz); }
+    x0 -= 1; z0 -= 1; x1 += 1; z1 += 1;
+    // when the whole floor would print too small to read (a phone), the plan frames what you have walked, where
+    // you are and where you are going; the rest runs off the edge of the paper
+    const crop = Math.min((W - 40) / (x1 - x0 + 1), (H - 40) / (z1 - z0 + 1)) < 14, m = crop ? 16 : 40;
+    if (crop) {
+      let a0 = 99, a1 = -99, b0 = 99, b1 = -99;
+      const take = (cx: number, cz: number, r = 0) => { a0 = Math.min(a0, cx - r); a1 = Math.max(a1, cx + r); b0 = Math.min(b0, cz - r); b1 = Math.max(b1, cz + r); };
+      for (const k of seen) take(k % L.w, Math.floor(k / L.w));
+      take(Math.floor(P.pos.x / 2), Math.floor(P.pos.z / 2), 2);
+      if (goal) take(Math.floor(goal.x / 2), Math.floor(goal.z / 2), toPanel ? 2 : 4);
+      const ar = (W - m) / (H - m), cx = (a0 + a1 + 1) / 2, cz = (b0 + b1 + 1) / 2;
+      let w = Math.max(a1 - a0 + 3, 16), h = Math.max(b1 - b0 + 3, 9);
+      if (w / h < ar) w = h * ar; else h = w / ar;
+      const fit = (c: number, n: number, lo: number, hi: number) => { if (n >= hi - lo + 1) return [lo, hi]; let s0 = Math.round(c - n / 2); s0 = Math.max(lo, Math.min(hi - Math.ceil(n) + 1, s0)); return [s0, s0 + Math.ceil(n) - 1]; };
+      [x0, x1] = fit(cx, w, x0, x1); [z0, z1] = fit(cz, h, z0, z1);
+    }
+    const cs = Math.max(4, Math.floor(Math.min((W - m) / (x1 - x0 + 1), (H - m) / (z1 - z0 + 1))));
+    const ox = Math.round((W - cs * (x1 - x0 + 1)) / 2) - x0 * cs, oz = Math.round((H - cs * (z1 - z0 + 1)) / 2) - z0 * cs;
+    const px = (wx: number) => ox + (wx / 2) * cs, pz = (wz: number) => oz + (wz / 2) * cs;
     const ink = (a: number) => `rgba(31, 36, 51, ${a})`;
     // unwalked floor: a faint photocopy hatch; walked: clean paper
     for (const c of L.cells) {
@@ -349,26 +388,23 @@ export class UI {
       if (!S.seenAreas.has(a.id)) continue;
       const cx = ox + ((a.x0 + a.x1 + 1) / 2) * cs, cz = oz + ((a.z0 + a.z1 + 1) / 2) * cs, wide = (a.x1 - a.x0 + 1) >= (a.z1 - a.z0 + 1);
       g.save(); g.translate(cx, cz); if (!wide) g.rotate(-Math.PI / 2);
-      g.font = `700 ${Math.max(9, Math.round(cs * 0.42))}px 'Courier Prime', 'Courier New', monospace`; g.fillStyle = ink(0.85);
+      g.font = `700 ${Math.max(10.5, Math.min(15, Math.round(cs * 0.5)))}px 'Courier Prime', 'Courier New', monospace`; g.fillStyle = ink(0.85);
       g.fillText(a.name.toUpperCase(), 0, 0); g.restore();
     }
     // the objective
-    const fuseHunt = !!S.flags.panelSeen && !pr.fuse.taken, toPanel = !S.flags.panelSeen || P.hasFuse;
     const ring = (x: number, z: number, r: number) => { g.save(); g.strokeStyle = 'rgba(179, 38, 30, 0.9)'; g.lineWidth = 2; g.setLineDash([5, 4]); g.beginPath(); g.arc(px(x), pz(z), r, 0, Math.PI * 2); g.stroke(); g.restore(); };
-    if (toPanel) ring(pr.panel.pos.x, pr.panel.pos.z, cs * 0.75);
-    else if (fuseHunt) { const a = AREAS.find(r => r.id === 'ward')!; ring((a.x0 + a.x1 + 1), (a.z0 + a.z1 + 1), cs * 2.6); }
+    if (goal) ring(goal.x, goal.z, cs * (toPanel ? 0.75 : 2.6));
     // you
     const fx = P.fwd.x, fz = P.fwd.z, l = Math.hypot(fx, fz) || 1, ux = fx / l, uz = fz / l, X = px(P.pos.x), Z = pz(P.pos.z), r = Math.max(7, cs * 0.34);
     g.fillStyle = '#b3261e'; g.strokeStyle = 'rgba(255, 250, 240, 0.9)'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(X + ux * r * 1.3, Z + uz * r * 1.3); g.lineTo(X - ux * r * 0.8 - uz * r * 0.8, Z - uz * r * 0.8 + ux * r * 0.8); g.lineTo(X - ux * r * 0.8 + uz * r * 0.8, Z - uz * r * 0.8 - ux * r * 0.8); g.closePath(); g.fill(); g.stroke();
-    g.font = `700 11px 'Courier Prime', 'Courier New', monospace`; g.fillStyle = '#b3261e'; g.textAlign = 'left';
-    g.fillText('USTED ESTÁ AQUÍ', X + r * 1.4, Z - r * 1.2);
+    g.font = `700 11px 'Courier Prime', 'Courier New', monospace`; g.fillStyle = '#b3261e';
+    const flip = X > W - 130; g.textAlign = flip ? 'right' : 'left'; // the label stays on the paper near an edge
+    g.fillText('USTED ESTÁ AQUÍ', X + (flip ? -1 : 1) * r * 1.4, Z < 22 ? Z + r * 1.8 : Z - r * 1.2);
     // north and a scale bar
     g.fillStyle = ink(0.8); g.textAlign = 'center'; g.font = `700 12px 'Courier Prime', monospace`;
     g.fillText('N', W - 24, 18); g.beginPath(); g.moveTo(W - 24, 26); g.lineTo(W - 29, 38); g.lineTo(W - 19, 38); g.closePath(); g.fill();
     g.fillRect(16, H - 14, cs * 2.5, 2); g.textAlign = 'left'; g.font = `400 10px 'Courier Prime', monospace`; g.fillText('5 m', 16 + cs * 2.5 + 6, H - 13);
-    $('map-close-key').textContent = this.device === 'pad' ? 'B' : this.device === 'touch' ? '' : `${keyName(this.game.settings.keys.map)} · Esc`;
-    this.show('map');
   }
 
   openSettings(back: () => void) {
@@ -385,8 +421,8 @@ export class UI {
     };
     const range = (id: string, key: keyof typeof s, min: number, max: number, step: number) => {
       const i = document.createElement('input'); i.type = 'range'; i.id = `set-${id}`; i.min = String(min); i.max = String(max); i.step = String(step); i.value = String(s[key]);
-      i.addEventListener('input', () => { (s as any)[key] = +i.value; G.applySettings(); });
-      return i;
+      i.addEventListener('input', () => { (s as any)[key] = +i.value; G.applySettings(); fill(i); });
+      fill(i); return i;
     };
     const check = (id: string, key: keyof typeof s) => {
       const i = document.createElement('input'); i.type = 'checkbox'; i.id = `set-${id}`; i.checked = !!s[key];
@@ -433,9 +469,11 @@ export class UI {
       });
       row(KEY_LABELS[a], b);
     }
-    const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'bind'; reset.textContent = 'Restablecer teclas';
-    reset.addEventListener('click', e => { e.preventDefault(); s.keys = { ...DEFAULT_KEYS }; saveSettings(s); this.openSettings(back); });
-    row('Predeterminadas', reset);
+    if (this.device !== 'touch') {
+      const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'bind'; reset.textContent = 'Restablecer teclas';
+      reset.addEventListener('click', e => { e.preventDefault(); s.keys = { ...DEFAULT_KEYS }; saveSettings(s); this.openSettings(back); });
+      row('Predeterminadas', reset);
+    }
     this.show('settings');
   }
 
@@ -462,7 +500,7 @@ export class UI {
       ['Registros', `${S.records} / ${RECORDS_TOTAL}`], ['Notas leídas', String(S.notes)], ['Fusibles', `${G.props.panel.installed} / 4`],
     ];
     const dl = $('end-stats'); dl.innerHTML = '';
-    for (const [k, v] of rows) { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); }
+    for (const [k, v] of rows) { const d = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = k; dd.textContent = v; d.append(dt, dd); dl.append(d); }
     this.show('end');
   }
 }

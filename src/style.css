@@ -54,13 +54,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 body[data-device=touch] .touch-only { display: inline; }
 body[data-device=touch] .kbm-only { display: none; }
 #title { --flash: 0; align-items: end; background: linear-gradient(90deg, rgba(3, 4, 3, 0.86) 0%, rgba(3, 4, 3, 0.35) 42%, transparent 70%); }
-.title-block { display: grid; gap: 14px; max-width: 34rem; padding-bottom: 4vh; }
-.title-block h1 { font: 700 clamp(52px, 9.4vw, 128px)/0.84 var(--display); text-transform: uppercase; margin: 0; color: var(--bone); text-shadow: 0 0 1px rgba(230, 223, 207, 0.4), 0 0 26px rgba(196, 41, 31, 0.18); filter: brightness(calc(1 + var(--flash) * 0.7)); animation: sign 9s steps(1, end) infinite; }
+.title-block { display: grid; gap: 14px; max-width: 40rem; padding-bottom: 4vh; }
+.title-block h1 { white-space: nowrap; font: 700 clamp(52px, min(9.4vw, 15vh), 128px)/0.84 var(--display); text-transform: uppercase; margin: 0; color: var(--bone); text-shadow: 0 0 1px rgba(230, 223, 207, 0.4), 0 0 26px rgba(196, 41, 31, 0.18); filter: brightness(calc(1 + var(--flash) * 0.7)); animation: sign 9s steps(1, end) infinite; }
 @keyframes sign { 0%, 61%, 63.5%, 66%, 100% { opacity: 1; } 62% { opacity: 0.4; } 65% { opacity: 0.72; } }
 .title-block > .eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; border-left: 2px solid var(--alarm); padding: 7px 14px 7px 10px; font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; background: linear-gradient(90deg, rgba(4, 5, 4, 0.6), transparent); width: fit-content; }
 .title-block .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--alarm); box-shadow: 0 0 7px rgba(196, 41, 31, 0.85); animation: rec 2.4s steps(2) infinite; }
 .title-block .clock { color: var(--bone); font-variant-numeric: tabular-nums; letter-spacing: 0.14em; }
-.title-block .tag { margin: -2px 0 6px; font: italic 400 clamp(14px, 1.5vw, 17px)/1.3 var(--type); color: var(--nicotine); text-shadow: 0 1px 3px #000; }
+.title-block .tag { margin: 4px 0 6px; font: italic 400 clamp(14px, 1.5vw, 17px)/1.3 var(--type); color: var(--nicotine); text-shadow: 0 1px 3px #000; }
 .title-block .tag::before { content: '— '; color: var(--alarm); font-style: normal; }
 .menu button.lead { color: var(--bone); }
 .who { display: grid; gap: 4px; width: min(22rem, 100%); }
@@ -73,7 +73,7 @@ body[data-device=touch] .kbm-only { display: none; }
 .who.shake input { border-bottom-color: var(--alarm); }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 .menu button.lead::before { transform: scaleX(1); }
-.fine { font-size: 12px; color: var(--ash); margin: 4px 0 0; max-width: 46ch; }
+.fine { font-size: 12px; color: var(--ash); margin: 4px 0 0; max-width: 64ch; }
 
 .panel { align-self: center; justify-self: center; background: var(--veil); border: 1px solid rgba(230, 223, 207, 0.14); padding: 24px clamp(18px, 3vw, 34px); display: grid; gap: 14px; width: 100%; max-height: 100%; overflow: auto; box-sizing: border-box; }
 .panel.narrow { max-width: 25rem; }
@@ -86,17 +86,41 @@ body[data-device=touch] .kbm-only { display: none; }
 
 #settings-form { display: grid; gap: 2px; }
 #settings-form h3 { font: 700 18px/1 var(--display); text-transform: uppercase; color: var(--nicotine); margin: 16px 0 6px; }
+#settings-form h3:first-child { margin-top: 0; }
+/* settings, controls and the diary: the way out sits top-right beside the title, and only the list scrolls */
+:is(#settings, #controls, #journal) .panel { display: flex; flex-direction: column; position: relative; overflow: hidden; }
+:is(#settings, #controls, #journal) .panel > h2 { flex: none; min-height: 40px; display: flex; align-items: center; }
+:is(#settings, #controls, #journal) .panel > :is(.acts, .row-btns) { position: absolute; top: 20px; right: clamp(18px, 3vw, 34px); }
+:is(#settings-form, #controls .table-wrap, #journal-notes) { flex: 1 1 auto; min-height: 0; overflow: auto; }
+@media (min-width: 600px) {
+  #settings-form { display: block; columns: 2 15rem; column-gap: 28px; }
+  #settings-form > * { break-inside: avoid; }
+  #settings-form h3 { break-after: avoid; }
+}
 .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: center; gap: 2px 16px; padding: 6px 0; border-bottom: 1px solid rgba(230, 223, 207, 0.07); }
 .row .lbl { font-size: 13px; }
 .row small { grid-column: 1 / -1; color: var(--ash); font-size: 11px; }
 .row input[type=range] { width: 100%; accent-color: var(--nicotine); }
+input[type=range] { -webkit-appearance: none; appearance: none; height: 26px; margin: 0; background: transparent; cursor: pointer; --p: 50%; }
+input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--nicotine) var(--p), rgba(230, 223, 207, 0.18) var(--p)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -6.5px; border-radius: 50%; background: var(--bone); border: 2px solid var(--nicotine); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+input[type=range]::-moz-range-track { height: 3px; border-radius: 2px; background: rgba(230, 223, 207, 0.18); }
+input[type=range]::-moz-range-progress { height: 3px; background: var(--nicotine); }
+input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--bone); border: 2px solid var(--nicotine); }
+input[type=range]:focus-visible { outline: none; }
+input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(201, 176, 106, 0.35); }
+.row:has(> input[type=checkbox]) { grid-template-columns: minmax(0, 1fr) auto; }
+.row:has(> select) { grid-template-columns: auto minmax(0, 1fr); }
+.row select { min-width: 0; }
 .row input[type=checkbox] { justify-self: start; width: 18px; height: 18px; accent-color: var(--nicotine); }
 .row select { background: #0d0f0d; color: var(--bone); border: 1px solid rgba(230, 223, 207, 0.2); font: inherit; font-size: 13px; padding: 4px 6px; }
 .bind { justify-self: start; border: 1px solid rgba(230, 223, 207, 0.22); padding: 3px 12px; font-size: 13px; min-width: 6ch; }
 .bind.wait { border-color: var(--nicotine); color: var(--nicotine); }
 
 .table-wrap { overflow-x: auto; }
-table.controls { border-collapse: collapse; font-size: 12px; min-width: 560px; }
+table.controls { border-collapse: collapse; font-size: 12px; width: 100%; }
+body:not([data-device=touch]) table.controls :is(th, td):nth-child(4), body[data-device=touch] table.controls :is(th, td):is(:nth-child(2), :nth-child(3)) { display: none; }
+.acts { display: flex; gap: 10px; }
 table.controls th { text-align: left; font-weight: 700; color: var(--nicotine); padding: 6px 12px 6px 0; border-bottom: 1px solid rgba(230, 223, 207, 0.2); }
 table.controls td { padding: 6px 12px 6px 0; border-bottom: 1px solid rgba(230, 223, 207, 0.07); color: var(--bone); }
 table.controls td:first-child { color: var(--ash); }
@@ -113,18 +137,19 @@ table.controls td:first-child { color: var(--ash); }
 
 /* ---------- notes and journal ---------- */
 #note { place-items: center; background: rgba(2, 3, 2, 0.72); }
-.paper { position: relative; background-color: var(--paper); color: var(--ink); width: min(30rem, 100%); max-height: 100%; overflow: auto; box-sizing: border-box; padding: 26px 28px 18px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 0 60px rgba(120, 90, 50, 0.22); transform: rotate(-0.6deg);
+.paper { --pc: var(--paper); position: relative; background-color: var(--pc); color: var(--ink); width: min(30rem, 100%); max-height: 100%; overflow: auto; box-sizing: border-box; padding: 26px 28px 18px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 0 60px rgba(120, 90, 50, 0.22); transform: rotate(-0.6deg);
   background-image: radial-gradient(circle at 84% 13%, transparent 0 29px, rgba(118, 76, 34, 0.2) 30px 32px, rgba(118, 76, 34, 0.06) 33px 39px, transparent 40px),
     linear-gradient(180deg, transparent 49.5%, rgba(60, 50, 30, 0.07) 50%, rgba(255, 250, 235, 0.18) 50.4%, transparent 51.2%),
     repeating-linear-gradient(transparent 0 27px, rgba(80, 90, 110, 0.12) 27px 28px), var(--paper-grain, none); }
 #note[data-kind=record] .paper::before, #note[data-kind=scrawl] .paper::before { content: ''; position: absolute; top: 6px; left: calc(50% - 46px); width: 92px; height: 22px; background: rgba(222, 214, 176, 0.62); transform: rotate(-3deg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
-#note[data-kind=log] .paper, #note[data-kind=chart] .paper { background-color: #d9d0b9; }
+#note[data-kind=log] .paper, #note[data-kind=chart] .paper { --pc: #d9d0b9; }
 .paper .eyebrow { color: #6f6655; }
 .paper h2 { font: 700 18px/1.2 var(--type); margin: 6px 0 14px; letter-spacing: 0.02em; }
 #note-body { font: 15px/1.75 var(--type); white-space: pre-wrap; margin: 0; }
 #note[data-kind=record] #note-body, #note[data-kind=scrawl] #note-body { font: 25px/1.15 var(--hand); color: #1d1a2a; }
-#note[data-kind=scrawl] .paper { background-color: #cfc6ae; }
-.paper footer { display: flex; justify-content: flex-end; margin-top: 14px; }
+#note[data-kind=scrawl] .paper { --pc: #cfc6ae; }
+/* the way out of a paper stays in view while you scroll it */
+.paper footer { display: flex; justify-content: flex-end; position: sticky; bottom: 0; margin: 10px -28px -18px; padding: 8px 28px 14px; background: linear-gradient(180deg, transparent, var(--pc) 42%); }
 .paper footer button { font: 700 13px/1 var(--type); color: #4f4838; padding: 8px 0; }
 .paper footer button span { color: #8a7f68; margin-left: 8px; }
 .clipboard #journal-objective { font-size: 14px; }
@@ -146,6 +171,7 @@ table.controls td:first-child { color: var(--ash); }
 #end { background: rgba(2, 3, 2, 0.6); }
 .big { font-size: clamp(30px, 4.6vw, 54px) !important; }
 #end-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 14px 20px; margin: 6px 0; }
+#end-stats > div { min-width: 0; }
 #end-stats dt { font: 700 12px/1.2 var(--type); color: var(--ash); }
 #end-stats dd { margin: 6px 0 0; font: 700 30px/1 var(--display); font-variant-numeric: tabular-nums; }
 
@@ -236,9 +262,12 @@ body:not(.has-bottles) .kit-row::before { opacity: 0.5; }
 #fuse-chip::before { content: '⚡ '; }
 
 /* ---------- touch ---------- */
-#touch { position: absolute; inset: 0; z-index: 12; --tb: 56px; --tbig: 74px; --tsm: 44px; --gap: 10px; }
-body.tb-sm #touch { --tb: 48px; --tbig: 64px; --tsm: 40px; --gap: 8px; }
-body.tb-lg #touch { --tb: 64px; --tbig: 86px; --tsm: 50px; --gap: 12px; }
+body { --tb: 56px; --tbig: 74px; --tsm: 44px; --gap: 10px; }
+body.tb-sm { --tb: 48px; --tbig: 64px; --tsm: 40px; --gap: 8px; }
+body.tb-lg { --tb: 64px; --tbig: 86px; --tsm: 50px; --gap: 12px; }
+#touch { position: absolute; inset: 0; z-index: 12; }
+/* any screen (pause, a note, the plan, the diary…) takes the whole view: the HUD and the buttons step out */
+body.screen-open #hud, body.screen-open #touch { visibility: hidden; }
 .stick-zone { position: absolute; left: 0; top: 22%; bottom: 0; width: 42%; touch-action: none; }
 .look-zone { position: absolute; right: 0; top: 0; bottom: 0; width: 58%; touch-action: none; }
 /* where the left thumb goes, until it lands */
@@ -252,10 +281,11 @@ body.tb-lg #touch { --tb: 64px; --tbig: 86px; --tsm: 50px; --gap: 12px; }
 .tpad { position: absolute; right: max(14px, env(safe-area-inset-right, 0px)); bottom: max(14px, env(safe-area-inset-bottom, 0px)); width: 240px; height: 200px; pointer-events: none; }
 .tb { position: absolute; display: grid; place-content: center; justify-items: center; gap: 2px; width: var(--tb); height: var(--tb); padding: 0; border-radius: 50%; border: 1px solid rgba(230, 223, 207, 0.26); background: radial-gradient(circle at 50% 35%, rgba(26, 28, 25, 0.6), rgba(5, 6, 5, 0.5)); color: var(--bone); pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform 0.08s, background-color 0.12s, border-color 0.12s, opacity 0.2s; }
 .tb svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.tb span { font: 700 8.5px/1 var(--type); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ash); }
+.tb span { font: 700 10px/1 var(--type); letter-spacing: 0.02em; text-transform: uppercase; color: var(--ash); }
+body.tb-sm .tb span { font-size: 9px; }
 .tb.big svg { width: 32px; height: 32px; }
 .tb.sm svg { width: 20px; height: 20px; }
-.tb.sm span { font-size: 7px; letter-spacing: 0.04em; }
+.tb.sm span { font-size: 9px; letter-spacing: 0; }
 .ttop .tb.sm span { display: none; }
 .tb.on { transform: scale(0.92); background: rgba(201, 176, 106, 0.3); border-color: var(--nicotine); }
 .tb.big { width: var(--tbig); height: var(--tbig); }
@@ -270,6 +300,9 @@ body.can-use .tpad .use span { color: var(--nicotine); }
 .tpad [data-act=crank] { right: calc(var(--tbig) + var(--tb) + var(--gap) * 1.8); bottom: calc(var(--tb) + var(--gap) * 1.2); }
 .tpad [data-act=throwhold] { right: calc(var(--tbig) * 1.55 + var(--gap) * 2); bottom: calc(var(--tbig) * 1.2 + var(--gap) * 2 + 18px); }
 .tpad [data-act=breath] { right: 0; bottom: calc(var(--tbig) + var(--gap) * 1.4); }
+/* a meter as a ring round the button it belongs to: stamina on CORRER, breath on ALIENTO */
+.tb.meter-on::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; background: conic-gradient(var(--ring, var(--bone)) calc(var(--m, 1) * 360deg), rgba(230, 223, 207, 0.14) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); }
+.tb.meter-on.spent { --ring: var(--alarm); }
 body.low-batt .tpad [data-act=crank] { border-color: var(--nicotine); animation: nudge 1.6s ease-in-out infinite; }
 @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(201, 176, 106, 0); } 50% { box-shadow: 0 0 0 6px rgba(201, 176, 106, 0.18); } }
 .ttop { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); display: flex; gap: 10px; }
@@ -286,36 +319,100 @@ body.lefty .stick-ghost { left: auto; right: max(30px, env(safe-area-inset-right
 body.lefty .tpad { right: auto; left: max(14px, env(safe-area-inset-left, 0px)); transform: scaleX(-1); }
 body.lefty .tpad .tb > * { transform: scaleX(-1); }
 body[data-device=touch] #crosshair { opacity: 0.6; }
-body[data-device=touch] #objective { max-width: 30vw; }
-/* phones: one thing per place. Lessons up top between the objective and the buttons; her words and your
-   thoughts in the band between the thumbs; nothing stacks on the prompt under the crosshair */
-body[data-device=touch] #subtitles { left: calc(150px + env(safe-area-inset-left, 0px)); right: calc(256px + env(safe-area-inset-right, 0px)); padding: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-body[data-device=touch] #tutorial { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; left: calc(min(30vw, 260px) + 26px + env(safe-area-inset-left, 0px)); right: calc(118px + env(safe-area-inset-right, 0px)); padding: 6px 10px; justify-content: flex-start; font-size: 12px; line-height: 1.35; background: linear-gradient(90deg, rgba(4, 5, 4, 0.6), rgba(4, 5, 4, 0.2)); border-left: 2px solid var(--nicotine); }
+/* phones: one thing per place. Top-left the objective, top-centre the lesson, top-right the system buttons with
+   the toast under them; the centre stays clear (prompt under the crosshair, the eye and the area card above it);
+   her words and your thoughts in the band between the thumbs; the meters ride on the buttons they belong to */
+body[data-device=touch] #objective { box-sizing: border-box; max-width: min(38vw, 290px); gap: 3px; padding: 6px 14px 7px 10px; }
+body[data-device=touch] #objective p { font-size: 12.5px; line-height: 1.36; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+body[data-device=touch] #tutorial { top: calc(10px + env(safe-area-inset-top, 0px)); bottom: auto; left: calc(min(38vw, 290px) + 28px + env(safe-area-inset-left, 0px)); right: calc(var(--tsm) * 2 + 34px + env(safe-area-inset-right, 0px)); padding: 6px 10px; justify-content: flex-start; gap: 10px; font-size: 12px; line-height: 1.35; background: linear-gradient(90deg, rgba(4, 5, 4, 0.7), rgba(4, 5, 4, 0.25)); border-left: 2px solid var(--nicotine); }
+body[data-device=touch] #tutorial kbd { font-size: 10.5px; padding: 4px 5px; flex: none; }
+body[data-device=touch] #toast { top: calc(var(--tsm) + 18px + env(safe-area-inset-top, 0px)); }
+body[data-device=touch] #aware { top: calc(var(--tsm) + 20px + env(safe-area-inset-top, 0px)); }
+body[data-device=touch] #area-card { top: 28%; gap: 4px; }
+body[data-device=touch] #area-name { font-size: clamp(22px, 3.6vw, 32px); padding: 6px 16px 3px; }
+body[data-device=touch] #area-sub { font-size: 10px; letter-spacing: 0.18em; }
+body.in-locker #area-card { display: none; }
+body[data-device=touch] #subtitles { left: calc(144px + env(safe-area-inset-left, 0px)); right: calc(var(--tbig) + var(--tb) * 2 + var(--gap) * 2 + 28px + env(safe-area-inset-right, 0px)); padding: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+body[data-device=touch].lefty #subtitles { left: calc(var(--tbig) + var(--tb) * 2 + var(--gap) * 2 + 28px + env(safe-area-inset-left, 0px)); right: calc(144px + env(safe-area-inset-right, 0px)); }
 body[data-device=touch] #subtitles #thought { font-size: 13.5px; line-height: 1.38; margin-bottom: 4px; }
 body[data-device=touch] #subtitles p { font-size: 12.5px; }
+body[data-device=touch] #subtitles p.say { font-size: 13.5px; }
 body[data-device=touch] #subtitles.thinking p.sfx { display: none; }
-body[data-device=touch] #area-card { top: 24%; }
-body.in-locker #area-card { display: none; }
+/* while a thought is on screen the lit USAR button says it all; the label under the crosshair steps aside */
+body[data-device=touch].thinking #interact { opacity: 0; }
 body[data-device=touch] #kit { left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 body[data-device=touch].lefty #kit { left: auto; right: max(16px, env(safe-area-inset-right, 0px)); }
-body[data-device=touch] #breath { top: calc(96px + env(safe-area-inset-top, 0px)); bottom: auto; }
-body[data-device=touch].lefty #subtitles { left: calc(256px + env(safe-area-inset-left, 0px)); right: calc(150px + env(safe-area-inset-right, 0px)); }
-body[data-device=touch] #toast { top: calc(58px + env(safe-area-inset-top, 0px)); }
+body[data-device=touch] :is(#breath, #stamina) { display: none !important; }
+/* the smallest phones: while a place's name is on screen, the kit beside it steps back */
+@media (max-height: 360px) { body[data-device=touch] #hud:has(#area-card:not([hidden])) #kit { opacity: 0; } }
+/* under a finger: every control at least 44 px */
+body[data-device=touch] .menu { row-gap: 0; }
+body[data-device=touch] .menu button { min-height: 44px; padding-block: 6px; }
+body[data-device=touch] :is(.primary, .row-btns button) { min-height: 44px; padding: 12px 20px; }
+body[data-device=touch] .row { min-height: 44px; padding: 3px 0; box-sizing: border-box; }
+body[data-device=touch] .row input[type=checkbox] { width: 24px; height: 24px; }
+body[data-device=touch] .row select { font-size: 16px; min-height: 40px; padding: 6px 8px; }
+body[data-device=touch] .jn { min-height: 44px; align-items: center; box-sizing: border-box; }
+body[data-device=touch] .who input { min-height: 44px; box-sizing: border-box; }
+body[data-device=touch] :is(.paper footer button, #btn-map-close) { min-height: 44px; padding: 10px 16px; border: 1px solid rgba(38, 34, 28, 0.45); }
+body[data-device=touch] input[type=range] { height: 40px; }
+body[data-device=touch] input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -10.5px; }
+body[data-device=touch] input[type=range]::-moz-range-thumb { width: 20px; height: 20px; }
+body[data-device=touch] table.controls { font-size: 13px; }
 
 #rotate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--bg); text-align: center; padding: 24px; }
 #rotate p { font: 700 24px/1.3 var(--display); text-transform: uppercase; }
 #boot-error { position: fixed; inset: auto 16px 16px; color: var(--nicotine); }
 #debug-map { position: fixed; right: 8px; top: 8px; z-index: 40; opacity: 0.85; pointer-events: none; image-rendering: pixelated; }
 
-@media (max-height: 460px) {
-  .title-block { gap: 8px; padding-bottom: 0; }
-  .title-block h1 { font-size: clamp(36px, 11vh, 64px); }
-  .title-block .tag { margin: -4px 0 0; font-size: 13px; }
-  .title-block > .eyebrow { flex-wrap: nowrap; white-space: nowrap; padding: 4px 10px 4px 8px; max-width: calc(100vw - 48px); }
+/* ---------- phones on their side (and any short window): about 300 px of height for everything ---------- */
+@media (max-height: 500px) {
+  .screen { padding-block: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-bottom, 0px)); }
+  .title-block { gap: 7px; padding-bottom: 0; max-width: min(46rem, 100%); }
+  .title-block h1 { font-size: clamp(34px, 11vh, 60px); }
+  .title-block .tag { margin: 3px 0 0; font-size: 13px; }
+  .title-block > .eyebrow { flex-wrap: nowrap; white-space: nowrap; padding: 4px 10px 4px 8px; max-width: calc(100vw - 48px); box-sizing: border-box; }
   .title-block .where { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .menu button { font-size: 18px; padding-block: 2px; }
+  .title-block .menu { flex-direction: row; flex-wrap: wrap; column-gap: 22px; }
+  .menu button { font-size: 17px; }
+  .who { width: min(20rem, 100%); }
+  .who input { padding-block: 5px 4px; }
+  .fine { font-size: 11px; line-height: 1.45; max-width: 72ch; margin: 0; }
   .panel { padding: 14px 18px; gap: 10px; }
+  .panel h2 { font-size: 26px; }
+  :is(#settings, #controls, #journal) .panel > :is(.acts, .row-btns) { top: 12px; right: 18px; }
+  #settings-form h3 { margin: 8px 0 2px; font-size: 16px; }
+  #pause .panel { max-width: 36rem; }
+  #pause .menu { display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, auto); column-gap: 28px; justify-content: start; }
+  #calibrate .panel { max-width: 36rem; grid-template-columns: auto minmax(0, 1fr); column-gap: 22px; align-items: center; }
+  #calibrate .panel > * { grid-column: 2; }
+  #calibrate .cal-box { grid-column: 1; grid-row: 1 / span 4; padding: 14px; }
+  .clipboard #journal-objective { font-size: 13px; }
+  #journal-notes { grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+  table.controls :is(td, th) { padding-block: 4px; }
+  #end .panel { gap: 8px; }
+  .big { font-size: clamp(26px, 4vw, 40px) !important; }
+  #end-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 14px; margin: 0; }
+  #end-stats dd { font-size: 24px; margin-top: 3px; }
   #area-card { top: 10%; }
+  /* papers: wider and shorter, smaller type */
+  #note .paper { width: min(46rem, 100%); padding: 14px 22px 12px; }
+  #note-body { font-size: 14px; line-height: 1.6; }
+  #note[data-kind=record] #note-body, #note[data-kind=scrawl] #note-body { font-size: 22px; line-height: 1.12; }
+  .paper h2 { margin: 5px 0 8px; font-size: 16px; }
+  .paper footer { margin: 6px -22px -12px; padding: 6px 22px 10px; }
+  /* the plan fills the screen; the canvas takes whatever the legend leaves */
+  .paper.plan { display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: 100%; padding: 8px 12px 0; }
+  .plan header { display: none; }
+  #map-canvas { flex: 1 1 0; min-height: 0; width: 100%; max-height: none; }
+  .paper.plan footer { position: static; margin: 2px -12px 0; padding: 2px 12px 6px; }
+  .plan .legend { font-size: 11px; gap: 2px 12px; }
+}
+@media (max-height: 380px) {
+  .title-block { gap: 5px; }
+  .title-block h1 { font-size: clamp(30px, 10vh, 40px); }
+  .fine { max-width: none; }
+  body[data-device=touch] .who input { min-height: 40px; }
 }
 @media (max-height: 300px) {
   .title-block { gap: 4px; }
@@ -327,11 +424,11 @@ body[data-device=touch] #toast { top: calc(58px + env(safe-area-inset-top, 0px))
 
 /* ---------- the plan ---------- */
 #map { place-items: center; background: rgba(2, 3, 2, 0.72); }
-.paper.plan { width: min(48rem, 100%); padding: 18px 20px 12px; transform: rotate(0.4deg); background-color: #d3cdbd;
+.paper.plan { --pc: #d3cdbd; width: min(48rem, 100%); padding: 18px 20px 12px; transform: rotate(0.4deg);
   background-image: linear-gradient(90deg, transparent 49.6%, rgba(60, 50, 30, 0.08) 50%, rgba(255, 250, 235, 0.16) 50.3%, transparent 51%), var(--paper-grain, none); }
-.paper.plan h2 { margin: 2px 0 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+.paper.plan h2 { margin: 5px 0 8px; text-transform: uppercase; letter-spacing: 0.08em; }
 #map-canvas { display: block; width: 100%; height: auto; max-height: calc(100dvh - 190px); object-fit: contain; }
-.plan footer { justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.paper.plan footer { justify-content: space-between; align-items: center; gap: 4px 12px; flex-wrap: wrap; margin: 6px -20px -12px; padding: 6px 20px 10px; }
 .plan .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font: 700 10.5px/1.2 var(--type); letter-spacing: 0.08em; text-transform: uppercase; color: #4f4838; }
 .plan .lg::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: -1px; }
 .plan .lg.you::before { background: #b3261e; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
@@ -350,8 +447,3 @@ body[data-device=touch] #toast { top: calc(58px + env(safe-area-inset-top, 0px))
 #aware .iris { fill: rgba(230, 223, 207, 0.9); transform-origin: 20px 10px; transform: scaleY(var(--open, 0.15)); }
 #aware.alarm .lid { stroke: #d64034; } #aware.alarm .iris { fill: #d64034; }
 body.in-locker #noise { display: none; }
-/* papers in hand: the floating HUD text steps out of the way */
-body[data-screen=map] :is(#subtitles, #area-card, #tutorial, #toast, #interact, #noise, #aware),
-body[data-screen=note] :is(#subtitles, #area-card, #tutorial, #toast, #interact, #noise, #aware),
-body[data-screen=journal] :is(#subtitles, #area-card, #tutorial, #toast, #interact, #noise, #aware) { visibility: hidden; }
-@media (max-height: 460px) { .paper.plan { padding: 8px 12px 6px; } .plan header { display: none; } #map-canvas { max-height: calc(100dvh - 78px); } .plan .legend { display: none; } }
