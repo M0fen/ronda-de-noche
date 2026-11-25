@@ -23,6 +23,8 @@ export class Storm {
   onFlash: ((k: number) => void) | null = null;
   moonK = 1;               // the title dims the moonlit spill while the torch is dead
   auto = true;             // random strikes (the title schedules its own)
+  external = false;        // a scene outside holds the lights: only the strike's envelope is worked out here
+  lightsList() { return this.lights; }
 
   constructor(private G: Game) {
     const glass = G.props.windowGlass;
@@ -72,6 +74,7 @@ export class Storm {
     }
     if (G.settings.reduced) f *= 0.45; // no hard strobing for photosensitive players
     this.flash = f;
+    if (this.external) { this.onFlash?.(f); return; }
     // redraw the sky only at the edges of a strike: bolt in, bolt out
     const want = f > 0.5 ? 2 : f > 0.02 ? 1 : 0;
     if (want !== this.drawn) { this.drawn = want; this.sky.draw(want === 2 ? 1 : want === 1 ? 0.45 : 0, want === 2); }

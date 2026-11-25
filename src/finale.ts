@@ -318,18 +318,6 @@ class Sheet {
   }
 }
 
-// a doorway full of colour: what the inside of Cirugía looks like after the syringe
-const DOORLIGHT_F = /* glsl */ `uniform float uTime, uK; varying vec2 vUv;
-void main(){
-  vec2 p = (vUv - 0.5) * vec2(1.0, 1.2);
-  float r = length(p), a = atan(p.y, p.x);
-  float s = 6.2831853 / 8.0, ak = abs(mod(a + uTime * 0.12, s) - s * 0.5);
-  vec2 q = vec2(cos(ak), sin(ak)) * r;
-  float f = sin(q.x * 22.0 - uTime * 3.0) * sin(q.y * 19.0 + uTime * 1.7) + sin(r * 30.0 - uTime * 4.0);
-  vec3 c = 0.55 + 0.45 * cos(6.2831853 * (vec3(0.0, 0.33, 0.67) + f * 0.12 + r * 0.8 - uTime * 0.3));
-  gl_FragColor = vec4(c * (1.0 + 0.7 * exp(-r * 3.0)) * uK, 1.0);
-}`;
-
 // ---- the scene ------------------------------------------------------------------------------------
 interface Saved { light: THREE.PointLight; pos: THREE.Vector3; color: THREE.Color; distance: number; intensity: number }
 type Tube = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; x: number; z: number; k: number; want: number; flick: number; sound?: boolean; sick?: boolean; mul?: number };
@@ -337,9 +325,11 @@ type Tube = { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; x: number; z: numb
 const PANEL = { x: 55.0, z: 41.0 };                 // where you stand to install the fuse (the panel is on the east wall)
 const PARK = { x: 54.35, z: 40.05 };                // where the gurney stops, beside you, its foot end at the wall
 const DOOR = { x: 44.0, z: 41.0 };                  // the gurney's centre when its foot end is in the breaker room door
-const END = 66.4;                                   // the end screen
-const CARD = 60.4;                                  // the title card
-const CIR = 53.4;                                   // the last shot: the doors of Cirugía
+const END = 70.8;                                   // the end screen
+const CARD = 64.8;                                  // the title card
+const HMS = 53.4;                                   // where the dose sets you down: in front of HOMERIS
+const WIDE = 57.7;                                  // the wide shot of its front
+const CUT = 64.4;                                   // to black
 const FALL = { ex: 55.05, ez: 42.4, ix: 54.78, iz: 41.82, dx: 55.55, dz: 41.1 }; // on the floor: your eye; she kneels at your chest, he stands at your feet
 const JEFA = { x: 31.15, z: 27.6 };                 // where la Jefa watches the gurney go by, under her red lamp
 
@@ -351,7 +341,6 @@ export class Finale {
   private sheet = new Sheet(); private body = new Sheet(0.17);
   private syr: ReturnType<typeof makeSyringe>;
   private tubes: Tube[] = [];
-  private doorLight: THREE.Mesh; private doorMat: THREE.ShaderMaterial;
   private fired = new Set<string>();
   private saved: Saved[] = [];
   private cam = { eye: V(0, 1.6, 0), look: V(0, 1.6, -1), up: V(0, 1, 0), tEye: V(0, 1.6, 0), tLook: V(0, 1.6, -1), tUp: V(0, 1, 0), kEye: 4, kLook: 4, kUp: 4, fov: 60, tFov: 60, kFov: 2, roll: 0, hand: 0.5, shake: 0 };
@@ -383,9 +372,6 @@ export class Finale {
       mesh.position.set(x, 2.98 - 0.087, z); mesh.rotation.y = rot ? Math.PI / 2 : 0; mesh.visible = false; G.scene.add(mesh);
       this.tubes.push({ mesh, mat, x, z, k: 0, want: 0, flick: 0 });
     }
-    this.doorMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uK: { value: 0 } }, vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`, fragmentShader: DOORLIGHT_F });
-    this.doorLight = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 2.28), this.doorMat);
-    this.doorLight.position.set(59.994, 1.15, 8); this.doorLight.rotation.y = -Math.PI / 2; G.scene.add(this.doorLight);
     this.sheet.shape({}); this.body.shape({});
     this.hide();
     for (const id of ['cine', 'cine-sub', 'cine-skip', 'cine-card']) this.el[id] = document.getElementById(id) as HTMLElement;
@@ -400,7 +386,7 @@ export class Finale {
 
   /** everything visible for the shader warm-up at load, then hidden again */
   warm(on: boolean) {
-    for (const o of [this.doctor.root, this.iris.root, this.gurney, this.syr.group, this.doorLight]) o.visible = on;
+    for (const o of [this.doctor.root, this.iris.root, this.gurney, this.syr.group]) o.visible = on;
     for (const tb of this.tubes) tb.mesh.visible = on;
     if (on) { this.doctor.stand(PANEL.x - 3, PANEL.z, 0); this.iris.stand(PANEL.x - 3.5, PANEL.z, 0); }
   }
@@ -434,7 +420,6 @@ export class Finale {
     this.sheet.mesh.visible = true; this.body.mesh.visible = false; this.sheet.shape({});
     for (const tb of this.tubes) { tb.k = 0; tb.want = 0; tb.flick = 0; tb.mesh.visible = true; tb.sound = false; tb.sick = false; tb.mul = 1; }
     this.wasDark = false; this.squeakT = 0; this.stepT = 0.4; this.doctor.lookW = 0; this.iris.lookW = 0; this.syr.fill(1);
-    this.doorLight.visible = false; this.doorMat.uniforms.uK.value = 0;
     this.G.dressing.theatreDoors(0);
     G.audio.finale(true);
     G.audio.threat = 0; G.audio.fear = 0.1; G.audio.breathHeld = false; G.audio.muffleTarget = 20000;
@@ -445,7 +430,7 @@ export class Finale {
   /** hold to skip: straight to the title card */
   private skip() {
     if (this.t >= CARD - 0.2) return;
-    this.skipFloor = 60.15; this.t = CARD - 0.05; this.G.audio.finaleCut();
+    this.skipFloor = CUT - 0.05; this.t = CARD - 0.05; this.G.audio.finaleCut(); this.G.ext.leave();
     this.G.post.u.uFade.value = 1; this.G.post.trip.on = false; this.resetTrip();
     this.sub('');
   }
@@ -461,6 +446,7 @@ export class Finale {
   /** put back what was borrowed */
   restore() {
     const G = this.G, P = G.player;
+    G.ext.leave(); G.storm.auto = true;
     for (const s of this.saved) { s.light.position.copy(s.pos); s.light.color.copy(s.color); s.light.distance = s.distance; s.light.intensity = s.intensity; }
     this.saved = [];
     G.props.hold = false;
@@ -684,7 +670,7 @@ export class Finale {
     // ---- act III: the colours ------------------------------------------------------------------------------
     this.trip(dt, t);
     this.at('tripOn', 35.6, () => A.tripStart());
-    if (t >= 35.6) A.tripUpdate(dt, ss(35.6, 39, t) * (1 - ss(59.4, 60.2, t)), ss(53.4, 59.4, t));
+    if (t >= 35.6) { const settle = ss(HMS, 57.4, t), burst = ss(62.7, 63.9, t); A.tripUpdate(dt, ss(35.6, 39, t) * (1 - 0.75 * settle + 0.9 * burst) * (1 - ss(CUT - 0.5, CUT, t)), Math.max(settle, burst)); }
     this.at('irisHum', 37.0, () => A.tripHum(true));
     this.at('thud', 41.5, () => { A.thud(0.6); c.shake = Math.max(c.shake, red ? 0 : 0.5); });
     this.at('black1', 43.0, () => A.tripHum(false));
@@ -744,22 +730,50 @@ export class Finale {
     }
     this.at('rideEnd', rideB, () => { const N = G.nurse; N.rig.root.visible = false; N.iv.visible = false; N.humWant = false; A.hum(false); N.wasHumming = false; jefaLight.light.intensity = 0; });
 
-    // ---- Cirugía (53.4–60.2): head up, the doors open by themselves, all of it colour -----------------------
-    if (t >= CIR && t < 60.2) {
-      const k = cl((t - CIR) / 6.2);
-      const eyeX = mix(56.4, 58.15, ss(0, 1, k) * 0.6 + k * 0.4);
-      const gx = eyeX + 0.78;
-      this.gurney.visible = true; this.gurney.position.set(gx, 0, 8); this.gurney.rotation.y = Math.PI / 2; // foot end east
-      this.body.mesh.visible = true; this.sheet.mesh.visible = false;
-      D.root.visible = true; D.stand(gx - 1.58, 8, Math.PI / 2); D.play('walk', 0.2, 0.9); D.lookW = 0;
-      D.pose = { upperarm_l: [-48, 0, 6], upperarm_r: [-48, 0, -6], lowerarm_l: [-38, 0, 0], lowerarm_r: [-38, 0, 0], spine_01: [7, 0, 0] };
-      I.root.visible = false; this.syr.group.visible = false;
-      this.doorLight.visible = true;
-      const open = ss(CIR + 0.7, CIR + 2.0, t);
-      this.doorMat.uniforms.uTime.value = t; this.doorMat.uniforms.uK.value = ss(CIR + 0.6, CIR + 2.4, t) * 0.8;
-      G.dressing.theatreDoors(open);
-      emSet(corr, 59.2, 1.6, 8, 0xffffff, 12); corr.light.color.setHSL((t * 0.13) % 1, 0.85, 0.55); corr.light.intensity = 5 * ss(CIR + 0.6, CIR + 2.4, t);
-      this.at('cirDoors', CIR + 0.7, () => A.doorsOpen({ x: 60, y: 1.2, z: 8 }));
+    // ---- HOMERIS (53.4–64.4): the colours settle into a white front with turquoise bands on the Avenida 30 de Agosto ----
+    if (t >= HMS && t < CUT) {
+      const X = G.ext;
+      if (!this.fired.has('hmIn')) { this.fired.add('hmIn'); X.enter('hm', true); G.storm.auto = false; this.squeakT = 0.2; }
+      X.update(dt, t);
+      const pov = t < WIDE;
+      // the gurney: across the parking (seen from on it), then, from across the road, up to the doors and in
+      let ax: number, az: number, bx: number, bz: number, k: number;
+      if (pov) { ax = -19.5; az = -0.6; bx = -14.6; bz = -5.4; k = (t - HMS) / (WIDE - HMS); }
+      else { ax = -13.6; az = -7.0; bx = -8.5; bz = -16.4; k = cl((t - WIDE) / (62.2 - WIDE)); k = k * 0.85 + ss(0, 1, k) * 0.15; }
+      const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, yaw = Math.atan2(ux, uz);
+      const w = X.at('hm', ax + dx * k, 0, az + dz * k, this.tmp3);
+      const inside = t > 62.05;
+      this.gurney.visible = !inside; this.gurney.position.copy(w); this.gurney.rotation.y = yaw;
+      if (k < 1) for (const wh of this.wheels) wh.rotation.x += dt * 22;
+      this.body.mesh.visible = true; this.sheet.mesh.visible = false; this.syr.group.visible = false;
+      if (!this.fired.has('hmBody')) { this.fired.add('hmBody'); this.body.shape({ hands: 0 }); }
+      // he pushes from the head end; she walks at the side, and in the wide goes ahead to the doors
+      D.root.visible = !inside; I.root.visible = !inside;
+      if (!inside) {
+        D.play('walk', 0.2, 1.6); D.stand(w.x - ux * 1.55, w.z - uz * 1.55, yaw);
+        // at the doors he turns his head, to whoever is watching from across the road
+        D.lookW = pov ? 1 : ss(60.9, 61.3, t); D.look.copy(pov ? c.eye : G.camera.position);
+        D.pose = { upperarm_l: [-48, 0, 6], upperarm_r: [-48, 0, -6], lowerarm_l: [-38, 0, 0], lowerarm_r: [-38, 0, 0], spine_01: [12, 0, 0], spine_02: [10, 0, 0] };
+        const sx = -uz, sz = ux, lead = pov ? -0.15 : 0.9;
+        I.play('walk', 0.2, 1.65); I.stand(w.x + sx * 0.85 + ux * lead, w.z + sz * 0.85 + uz * lead, yaw);
+        I.lookW = pov ? 1 : 0; I.look.copy(c.eye);
+        I.pose = pov ? { upperarm_r: [-120, 0, -10], lowerarm_r: [-40, 0, 0] } : {};
+      }
+      // the doors open as they come and shut behind them; then the hall turns to colour
+      X.hmDoors.want = t > 60.0 && t < 62.4 ? 1 : 0;
+      this.at('hmOpen', 60.0, () => A.slide(X.at('hm', -8.5, 1.2, -14, this.tmp), true));
+      this.at('hmShut', 62.4, () => A.slide(X.at('hm', -8.5, 1.2, -14, this.tmp), false));
+      const burst = ss(62.7, 63.9, t);
+      X.hmDoors.colours.uniforms.uTime.value = t; X.hmDoors.colours.uniforms.uK.value = ss(62.5, 63.6, t) * 1.25;
+      if (t > 62.55) { X.hmDoors.inside.color.setHSL((t * 0.35) % 1, 0.7, 0.35 + 0.3 * burst); const hall = em[0].light; hall.color.setHSL((t * 0.35 + 0.5) % 1, 0.9, 0.6); hall.intensity = 7 + 34 * burst; }
+      else X.hmDoors.inside.color.setHex(0xbfd6dc);
+      this.at('hmColours', 62.8, () => A.doorsOpen(X.at('hm', -8.5, 1.2, -14, this.tmp)));
+      // a car on the avenue behind the camera: its lights sweep the trees and the front
+      if (t > 58.0 && t < 61.6) { const kk = (t - 58.0) / 3.6, car = em[4].light; X.at('hm', mix(60, -60, kk), 1.1, 18.5, car.position); car.color.setHex(0xfff0d4); car.intensity = 70 * Math.sin(Math.PI * kk); car.distance = 36; car.decay = 2; }
+      this.at('hmCar', 57.9, () => A.carPass(0.6));
+      // the castors on the asphalt
+      if (k < 1 && !inside) { this.squeakT -= dt; if (this.squeakT <= 0) { this.squeakT = 0.45; A.gurney(this.tmp.copy(w).setY(0.5), 0.6); } }
+      this.at('hmLine', 58.5, () => { A.voiceClose('v_doctor2', -0.25, 0.95); this.say('EL MÉDICO', 'Bienvenido a HOMERIS. Aquí la luz no se va nunca.', 4.3); });
     }
 
     // ---- the tubes -----------------------------------------------------------------------------------------------
@@ -784,8 +798,8 @@ export class Finale {
     if (I.root.visible) I.update(dt);
 
     // ---- title ------------------------------------------------------------------------------------------------------
-    this.at('cut', 60.2, () => { A.finaleCut(); this.resetTrip(); this.sub(''); this.hide(); });
-    if (t >= 60.2) u.uFade.value = 1;
+    this.at('cut', CUT, () => { A.finaleCut(); this.resetTrip(); this.sub(''); this.hide(); G.ext.leave(); });
+    if (t >= CUT) u.uFade.value = 1;
     this.at('card', CARD, () => { this.el['cine-card'].classList.add('on'); A.cardHit(); });
     this.at('cardOff', END - 1.4, () => this.el['cine-card'].classList.remove('on'));
   }
@@ -869,15 +883,26 @@ export class Finale {
       c.tUp.set(0, jefa, 1 - jefa).normalize(); // turning to her, you lift your head: she stands upright in your eyes
       c.hand = 1.4;
       if (!this.fired.has('rideSnap')) { this.fired.add('rideSnap'); c.eye.copy(c.tEye); c.look.copy(c.tLook); c.up.copy(c.tUp); }
-    } else if (t < CIR) {
+    } else if (t < HMS) {
       // eyes shut
-    } else if (t < 60.2) {                         // Cirugía: head up, the doors
-      const gx = this.gurney.position.x;
-      eye(gx - 0.78, 1.16, 8, 30);
-      look(60.5, 1.25, 8, 30);
-      c.tUp.set(0, 1, 0); c.hand = 1.2;
-      c.tFov = this.G.settings.fov + 10 * ss(57.5, 59.8, t);
-      if (!this.fired.has('cirSnap')) { this.fired.add('cirSnap'); c.eye.copy(c.tEye); c.look.copy(c.tLook); c.up.copy(c.tUp); c.roll = 0; }
+    } else if (t < WIDE) {                         // HOMERIS from the gurney: the sky through the samán, then the lettering
+      const g = this.gurney.position, yaw = this.gurney.rotation.y, ux = Math.sin(yaw), uz = Math.cos(yaw);
+      const ex = g.x - ux * 0.78, ez = g.z - uz * 0.78;
+      eye(ex, 1.0, ez, 30);
+      const lift = ss(55.3, 56.9, t);
+      const sign = this.G.ext.at('hm', -15.6, 7.7, -13.9, this.tmp2);
+      look(mix(ex + ux * 2.4, sign.x, lift), mix(7.2, sign.y, lift), mix(ez + uz * 2.4, sign.z, lift), 2.4 + lift * 2);
+      c.tUp.set(-ux * (1 - lift), lift, -uz * (1 - lift)).normalize(); c.kUp = 3;
+      c.tFov = this.G.settings.fov + 8 - 12 * lift; c.kFov = 2;
+      c.hand = 1.2;
+      if (!this.fired.has('hmSnap')) { this.fired.add('hmSnap'); c.eye.copy(c.tEye); c.look.copy(c.tLook); c.up.copy(c.tUp); c.roll = 0; }
+    } else if (t < CUT) {                          // the wide: the whole front, and them going in
+      const k = ss(WIDE, CUT, t), X = this.G.ext;
+      X.at('hm', mix(-0.6, -2.0, k), 1.5, mix(9.9, 8.4, k), c.tEye); c.kEye = 30;
+      X.at('hm', mix(-11.6, -11.0, k), mix(4.9, 4.3, k), -13, c.tLook); c.kLook = 30;
+      c.tUp.set(0, 1, 0); c.kUp = 30; c.hand = 0.3; c.roll = 0;
+      c.tFov = this.G.settings.fov - 2 - 4 * k; c.kFov = 30;
+      if (!this.fired.has('wideSnap')) { this.fired.add('wideSnap'); c.eye.copy(c.tEye); c.look.copy(c.tLook); c.up.copy(c.tUp); c.fov = c.tFov; }
     }
   }
 
@@ -922,31 +947,38 @@ export class Finale {
     const G = this.G, u = G.post.u, tr = G.post.trip, red = G.settings.reduced;
     if (!tr.on) return;
     const R = red ? 0.35 : 1;
-    const onset = ss(35.25, 39.5, t), peak = ss(53.9, 58.4, t), fall = ss(40.6, 42.6, t);
+    const onset = ss(35.25, 39.5, t), fall = ss(40.6, 42.6, t);
     const ride = t >= 44.2 && t < 52.4 ? 1 : 0;
-    u.uTrip.value = Math.min(1, onset * 0.75 + peak * 0.25 + ride * 0.15) * (red ? 0.6 : 1);
+    // at HOMERIS the colours settle (the dose has done its work) and come back once, from behind its doors
+    const before = t < HMS, hm = t >= HMS && t < CUT ? 1 : 0;
+    const settle = ss(HMS, 57.4, t), burst = ss(62.7, 63.9, t);
+    const lvl = hm * (t < WIDE ? 0.55 * (1 - settle) + 0.12 : 0.05 + 0.9 * burst);
+    const peak = hm * (t < WIDE ? 0.5 * (1 - settle) : burst);
+    u.uTrip.value = Math.min(1, before ? onset * 0.75 + ride * 0.15 : lvl) * (red ? 0.6 : 1);
     u.uInj.value = ss(35.25, 38.5, t) * 1.3 * (1 - ss(39.0, 41.0, t));
-    u.uBreathe.value = (onset * 0.7 + ride * 0.5 + peak * 0.6) * R;
-    u.uHue.value = (t - 35.25) * 0.18 * R + Math.sin(t * 0.4) * 0.6 * onset * R;
-    u.uSat.value = (0.6 * onset + 0.5 * peak) * (red ? 0.5 : 1);
-    u.uEdge.value = (0.35 * onset + 0.6 * peak + 0.25 * ride) * R;
-    u.uKal.value = (ss(42.0, 42.9, t) * 0.6 * (t < 43 ? 1 : 0) + (ride ? 0.18 + 0.12 * Math.sin(t * 0.7) : 0) + peak) * (red ? 0.35 : 1);
+    u.uBreathe.value = (before ? onset * 0.7 + ride * 0.5 : lvl * 0.8 + peak * 0.4) * R;
+    // the hue turns back to the real colours as the dose settles, and spins again in the burst
+    u.uHue.value = ((t - 35.25) * 0.18 * R + Math.sin(t * 0.4) * 0.6 * onset * R) * (before ? 1 : Math.max(1 - settle, burst));
+    u.uSat.value = (before ? 0.6 * onset : 0.3 * (1 - settle) + 0.6 * burst) * (red ? 0.5 : 1);
+    u.uEdge.value = (before ? 0.35 * onset + 0.25 * ride : 0.3 * lvl + 0.6 * peak) * R;
+    u.uKal.value = (before ? ss(42.0, 42.9, t) * 0.6 * (t < 43 ? 1 : 0) + (ride ? 0.18 + 0.12 * Math.sin(t * 0.7) : 0) : 0.6 * burst) * (red ? 0.35 : 1);
     u.uKalN.value = t < 50 ? 6 : 8;
-    u.uFract.value = (ride * 0.18 + peak * 0.9) * R;
-    u.uFlood.value = ss(58.4, 59.6, t);
+    u.uFract.value = (before ? ride * 0.18 : 0.08 * (1 - settle) + 0.7 * burst) * R;
+    u.uFlood.value = hm * ss(63.85, 64.35, t);
     u.uDesat.value = 0; u.uFear.value = 0;
-    u.uLevels.value = mix(36, 14, (onset * 0.3 + peak * 0.7) * R);
-    u.uAberr.value = 0.006 + 0.02 * onset * R;
-    // trails: the last frames fade slowly behind the new one; at the doors the picture falls into itself
+    u.uLevels.value = mix(36, 14, (before ? onset * 0.3 : lvl * 0.3 + peak * 0.7) * R);
+    u.uAberr.value = 0.006 + 0.02 * (before ? onset : lvl) * R;
+    // trails: the last frames fade slowly behind the new one
     tr.keep = red ? 0.5 : mix(0.82, 0.93, peak);
-    tr.trail = (0.55 * onset * (1 - 0.6 * fall * (t < 42.4 ? 1 : 0)) + 0.4 * peak + 0.2 * ride) * (red ? 0.4 : 1);
+    tr.trail = (before ? 0.55 * onset * (1 - 0.6 * fall * (t < 42.4 ? 1 : 0)) + 0.2 * ride : 0.5 * lvl + 0.4 * peak) * (red ? 0.4 : 1);
     tr.zoom = Math.pow(red ? 1.05 : 1 + 0.45 * peak + 0.12 * ride + 0.06 * onset, dt);
     tr.rot = (0.08 * onset + 0.25 * peak) * dt * (red ? 0.2 : 1);
     tr.hue = (0.4 + 1.2 * peak) * dt;
-    // eyes closing (blackouts between the shots)
+    // eyes closing (blackouts between the shots), and a blink at the cut to the wide
     let fade = 0;
     fade = Math.max(fade, ss(42.6, 43.0, t) * (1 - ss(44.0, 44.6, t)));
     fade = Math.max(fade, ss(51.9, 52.4, t) * (1 - ss(53.2, 53.8, t)));
+    if (t >= WIDE && t < WIDE + 0.6) fade = Math.max(fade, 0.9 * (1 - ss(WIDE, WIDE + 0.55, t)));
     if (!red) fade = Math.max(fade, 0.55 * Math.max(0, Math.sin(cl((t - 35.25) / 0.35) * Math.PI)) * (t < 35.7 ? 1 : 0));
     u.uFade.value = fade;
   }

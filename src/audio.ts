@@ -896,6 +896,83 @@ export class AudioSys {
     this.muffleTarget = 20000;
     this.world.gain.cancelScheduledValues(t); this.world.gain.setTargetAtTime(0, t, 0.015);
   }
+  // ---- outside: the Carrera 4 in the blackout, the Avenida 30 de Agosto at night -----------------------------------
+  private outLoops: { stop: (t: number) => void }[] = [];
+  private cricketBuf: AudioBuffer | null = null;
+  /** a dog somewhere in the blocks around: two or three barks and the street answering */
+  bark(pos: V3, gain = 0.6) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 1.4, this.amb);
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) {
+      const d = i * (0.3 + Math.random() * 0.12), f = 470 + Math.random() * 90;
+      this.tone(o, t + d, 'sawtooth', f, f * 0.62, 0.13, 0.16 * gain, 0.006);
+      this.tone(o, t + d, 'square', f * 0.5, f * 0.36, 0.1, 0.05 * gain, 0.006);
+      this.burst(o, t + d, 0.12, 'bandpass', 1100, 1.3, 0.22 * gain, 0.004);
+      this.burst(this.verbIn, t + d + 0.02, 0.4, 'bandpass', 900, 1, 0.05 * gain);
+    }
+  }
+  /** crickets in the grass: a buffer of several, looped */
+  private crickets() {
+    const ctx = this.ctx!; if (this.cricketBuf) return this.cricketBuf;
+    const sr = ctx.sampleRate, len = sr * 6, b = ctx.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = b.getChannelData(ch);
+      for (let k = 0; k < 4; k++) {
+        const f = 4300 + Math.random() * 900 + ch * 60, per = 0.55 + Math.random() * 0.4, off = Math.random() * per, rate = 26 + Math.random() * 10, amp = 0.05 + Math.random() * 0.05;
+        for (let i = 0; i < len; i++) {
+          const ts = i / sr, ph = (ts + off) % per;
+          if (ph > 0.16) continue;
+          const pulse = Math.max(0, Math.sin(ph * rate * Math.PI * 2)), env = Math.sin(Math.PI * ph / 0.16);
+          d[i] += Math.sin(2 * Math.PI * f * ts) * pulse * env * amp;
+        }
+      }
+    }
+    return (this.cricketBuf = b);
+  }
+  /** the night outside: 'sj' the rain and a generator running at Urgencias; 'hm' crickets and the avenue far off */
+  exterior(kind: 'sj' | 'hm' | null, at?: V3) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now();
+    for (const l of this.outLoops) l.stop(t);
+    this.outLoops = [];
+    if (!kind) return;
+    // the city a long way off: a low wash
+    { const s = ctx.createBufferSource(); s.buffer = this.noise; s.loop = true; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = kind === 'hm' ? 420 : 260; const g = ctx.createGain(); g.gain.value = 0; s.connect(lp).connect(g).connect(this.amb); s.start(t); g.gain.setTargetAtTime(kind === 'hm' ? 0.07 : 0.04, t, 1.2); this.outLoops.push({ stop: tt => { g.gain.setTargetAtTime(0, tt, 0.3); s.stop(tt + 1.5); } }); }
+    if (kind === 'sj' && at) { // a diesel plant thudding behind Urgencias
+      const p = this.loopOut(at, this.amb); p.refDistance = 4; p.rolloffFactor = 1.2;
+      const g = ctx.createGain(); g.gain.value = 0; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260; lp.connect(g).connect(p);
+      const os: OscillatorNode[] = [];
+      for (const [f, a] of [[29.5, 0.6], [59, 0.35], [88.5, 0.16], [118, 0.08]] as [number, number][]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; const og = ctx.createGain(); og.gain.value = a * 0.12; o.connect(og).connect(lp); o.start(t); os.push(o); }
+      g.gain.setTargetAtTime(0.9, t, 1.5);
+      this.outLoops.push({ stop: tt => { g.gain.setTargetAtTime(0, tt, 0.2); for (const o of os) o.stop(tt + 1.2); } });
+    }
+    if (kind === 'hm') {
+      const s = ctx.createBufferSource(); s.buffer = this.crickets(); s.loop = true; const g = ctx.createGain(); g.gain.value = 0; const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500;
+      s.connect(hp).connect(g).connect(this.amb); s.start(t, Math.random() * 5); g.gain.setTargetAtTime(0.55, t, 0.8);
+      this.outLoops.push({ stop: tt => { g.gain.setTargetAtTime(0, tt, 0.25); s.stop(tt + 1.2); } });
+    }
+  }
+  /** a car going by on the avenue behind you, left to right */
+  carPass(gain = 0.6) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now(), dur = 3.4;
+    const s = ctx.createBufferSource(); s.buffer = this.noise; s.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.7;
+    bp.frequency.setValueAtTime(380, t); bp.frequency.linearRampToValueAtTime(1300, t + dur * 0.48); bp.frequency.linearRampToValueAtTime(320, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.5 * gain, t + dur * 0.5); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    const pan = ctx.createStereoPanner(); pan.pan.setValueAtTime(-0.9, t); pan.pan.linearRampToValueAtTime(0.9, t + dur);
+    s.connect(bp).connect(g).connect(pan).connect(this.amb); s.start(t); s.stop(t + dur + 0.1);
+    this.tone(pan, t + dur * 0.4, 'sawtooth', 95, 70, dur * 0.4, 0.04 * gain, 0.4);
+  }
+  /** glass doors sliding apart on their rail, and shutting */
+  slide(pos: V3, open = true) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 0);
+    const b = this.burst(o, t, 0.9, 'bandpass', open ? 700 : 900, 1.6, 0.18, 0.08); b.f.frequency.linearRampToValueAtTime(open ? 1100 : 600, t + 0.9);
+    this.tone(o, t, 'sine', open ? 210 : 260, open ? 260 : 190, 0.8, 0.03, 0.1);
+    if (!open) this.burst(o, t + 0.85, 0.08, 'lowpass', 900, 0.8, 0.25);
+  }
   /** the title card: one low strike and its long tail */
   cardHit() {
     if (!this.ctx) return;

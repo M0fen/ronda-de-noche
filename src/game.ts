@@ -15,6 +15,8 @@ import { FEAR } from './content';
 import { Dressing } from './dressing';
 import { Storm } from './storm';
 import { Finale } from './finale';
+import { Exterior } from './exterior';
+import { Intro } from './intro';
 
 // the title shot: Ward B at night, her between the beds, the storm in the windows behind her
 // title shot: you have just found her. Torch on her chest, the ward and the storm behind; she stands on the right third
@@ -29,7 +31,7 @@ export class Game {
   post!: Post; dust!: THREE.Points; tex!: Tex;
   level!: Level; props!: Props; audio = new AudioSys(); input!: Input; ui!: UI;
   player!: Player; nurse!: Nurse; director!: Director; story!: Story;
-  dressing!: Dressing; storm!: Storm; finale!: Finale;
+  dressing!: Dressing; storm!: Storm; finale!: Finale; ext!: Exterior; intro!: Intro;
   noises: Noise[] = []; time = 0; mode: Mode = 'title';
   stats = { time: 0, caught: 0, thrown: 0, notes: 0, records: 0, hides: 0 };
   flicker = 0; fear = 0; caughtT = 0; journalBack = 'pause'; noteFromJournal = false;
@@ -72,6 +74,9 @@ export class Game {
     this.storm = new Storm(this);
     this.finale = new Finale(this);
     this.finale.done = () => this.showEnd();
+    this.ext = new Exterior(this);
+    this.intro = new Intro(this);
+    this.intro.done = () => { this.mode = 'intro'; this.beginPlay(); };
     let lastFlash = -1;
     const titleEl = document.getElementById('title')!;
     this.storm.onFlash = k => { const v = Math.round(k * 50) / 50; if (v !== lastFlash) { lastFlash = v; titleEl.style.setProperty('--flash', String(v)); } };
@@ -95,9 +100,10 @@ export class Game {
     // compile every shader up front so nothing hitches when a new room comes into view
     this.player.torch.on = true; this.player.updateLight();
     this.finale.warm(true); // the finale's people and things too, so its first frames don't stall
+    this.ext.warm(true); this.ext.upload(this.renderer); // and the two places outside
     this.renderer.compile(this.scene, this.camera);
     this.post.render(this.scene, this.camera); // warm-up pass also builds the shadow shaders
-    this.finale.warm(false); this.post.warmTrip();
+    this.finale.warm(false); this.ext.warm(false); this.post.warmTrip();
     this.player.torch.on = false; this.player.updateLight();
     if (/debug/.test(location.hash) || /debug=1/.test(location.search)) {
       const { Debug } = await import('./debug');
@@ -190,9 +196,10 @@ export class Game {
     this.nurse.rig.root.visible = false; this.nurse.iv.visible = false;
     this.player.spawn(this.level.start.x, this.level.start.z, 0);
     this.post.u.uFade.value = 1;
-    this.ui.intro(['Hospital San Jorge', '1992 · 03:47', 'Con el racionamiento, la luz se fue hace horas.', 'Alguien tiene que volver a prenderla.'], () => this.beginPlay());
+    this.intro.start(); // the Parque Gaitán, the Carrera 4, the doors
   }
   beginPlay() {
+    if (this.intro.active) { this.intro.finish(); return; } // asked to start while the way in is still playing: cut it short
     if (this.mode !== 'intro') return;
     this.mode = 'play'; T.ev('play');
     this.ui.show(''); this.ui.hud(true);
@@ -567,7 +574,7 @@ export class Game {
       case 'title': this.title(dt); break;
       case 'play': this.play(dt); break;
       case 'caught': this.caught(dt); break;
-      case 'cine': this.input.read(dt); this.finale.update(dt); break;
+      case 'cine': this.input.read(dt); this.intro.update(dt); this.finale.update(dt); break;
       case 'intro': { const a = this.input.read(dt); if (a.any || a.interact) this.beginPlay(); break; }
       case 'pause': { const a = this.input.read(dt); if (a.pause) this.resume(); break; }
       case 'note': { const a = this.input.read(dt); if (a.pause || a.interact) this.closeNote(); break; }
