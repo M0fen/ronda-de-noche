@@ -135,7 +135,8 @@ export const NOTES: NoteDef[] = [
 02:35  Orden de la madre superiora: desocupar el Pabellón B apenas amanezca.
 02:50  La hermana K. no quiere. Dice que a la paciente de la cama 3 no se la puede mover a oscuras.
 03:15  Se fue la luz del todo. No hay línea en los teléfonos.
-03:20  Los camilleros sacaron los cuatro fusibles principales y los escondieron en los pabellones, para que nadie volviera a cortar esos circuitos. El tablero está en el cuarto al oriente de esta recepción.
+03:20  Los camilleros sacaron los cuatro fusibles principales y los escondieron en los pabellones. Dicen que mientras no haya luz, las puertas de Cirugía no abren. Que así es mejor. El tablero está en el cuarto al oriente de esta recepción.
+03:31  El doctor de turno sigue en Cirugía. No contesta. Por las ventanitas de la puerta se ve una luz de colores.
 03:40  Alguien está tarareando en el pasillo.
                                      J. Ospina, camillero`,
     place: { cx: 11, cz: 20, surface: 'desk', oz: -0.2 },
@@ -188,6 +189,23 @@ Las visitas eran hasta las ocho.
 
                                 K.`,
     place: { cx: 6, cz: 15, surface: 'wall', face: 'S' },
+  },
+  {
+    id: 'k3', title: 'Clavado junto a la barricada · Pasillo norte', kind: 'record', record: 3,
+    body: `No dejen que vuelva la luz.
+
+Sin luz, la puerta de Cirugía no abre.
+Y mientras yo haga la ronda, el doctor no se lleva a ninguno de los míos.
+
+Cuando sale, empuja una camilla tapada, como si llevara a una paciente.
+No es una paciente. Es la otra.
+Trae los colores en una jeringa.
+
+Si oyen las ruedas, escóndanse.
+Y no miren los colores.
+
+                                K.`,
+    place: { cx: 26, cz: 5, surface: 'wall', face: 'N' },
   },
   {
     id: 'chart', title: 'Historia clínica · Cama 5', kind: 'chart',

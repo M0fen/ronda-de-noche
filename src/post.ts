@@ -11,6 +11,9 @@ uniform vec2 uRes; uniform vec2 uOut;
 uniform float uTime, uExposure, uGrain, uAberr, uWarp, uFear, uPulse, uBreath, uLocker, uSheet, uFade, uHalluc, uDesat, uLevels, uFlash, uFocus, uShock;
 uniform sampler2D tDepth; uniform float uNear, uFar, uHaze, uTorchCos, uTorchCosIn, uTorchRange; uniform int uSteps;
 uniform vec2 uTan; uniform vec3 uTorchPos, uTorchDir; uniform mat4 uCamWorld;
+// the trip (finale.ts): a master level, the kaleidoscope, hue turning, swollen colour, neon edges, the dose spreading
+// from the needle, the breathing walls, a fractal veil, and the end when everything is colour
+uniform float uTrip, uKal, uKalN, uHue, uSat, uEdge, uInj, uBreathe, uFract, uFlood; uniform vec2 uInjPt;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
 float bayer2(vec2 a){ a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
@@ -34,6 +37,10 @@ vec3 beamHaze(vec2 uv, float jit){
   }
   return vec3(1.0, 0.86, 0.66) * acc * tMax / max(n, 1.0) * uHaze;
 }
+vec3 hueTurn(vec3 c, float a){ const vec3 k = vec3(0.57735); float ca = cos(a); return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca); }
+float vnoise(vec2 x){ vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y); }
+float lumAt(vec2 uv){ return dot(texture2D(tScene, uv).rgb, vec3(0.2126, 0.7152, 0.0722)); }
 vec3 toSRGB(vec3 c){ c = clamp(c, 0.0, 1.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0/2.4)) - 0.055, step(0.0031308, c)); }
 float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main(){
@@ -43,6 +50,22 @@ void main(){
   p /= 1.0 + uWarp;
   if (uHalluc > 0.0) p += vec2(sin(uTime*1.7 + p.y*6.0), cos(uTime*1.3 + p.x*5.0)) * 0.006 * uHalluc;
   vec2 uv = p * 0.5 + 0.5;
+  if (uTrip > 0.0) {
+    // the walls breathe: a slow swell travelling outward, a turning that drifts, the picture flowing like warm wax;
+    // then the kaleidoscope folds it into a wheel
+    float asp = uOut.x / uOut.y;
+    vec2 c = (uv - 0.5) * vec2(asp, 1.0);
+    float r = length(c), a = atan(c.y, c.x);
+    r *= 1.0 + uBreathe * (0.035 * sin(uTime * 1.25 - r * 7.0) + 0.02 * sin(uTime * 0.53));
+    a += uBreathe * 0.22 * sin(uTime * 0.31 + r * 2.0) * (1.0 - smoothstep(0.0, 0.9, r));
+    vec2 w = vec2(cos(a), sin(a)) * r;
+    w += uBreathe * 0.014 * vec2(sin(w.y * 9.0 + uTime * 0.8), sin(w.x * 7.0 - uTime * 0.6));
+    if (uKal > 0.0) {
+      float sg = 6.2831853 / uKalN, ak = abs(mod(a + uTime * 0.05, sg) - sg * 0.5);
+      w = mix(w, vec2(cos(ak), sin(ak)) * r, uKal);
+    }
+    uv = w / vec2(asp, 1.0) + 0.5;
+  }
   // the grab: the picture tears in bands
   if (uShock > 0.0) { float row = floor(vUv.y * 38.0), fr = floor(uTime * 40.0); uv.x += (hash(vec2(row, fr)) - 0.5) * 0.07 * uShock * step(0.5, hash(vec2(row * 1.7, fr + 3.0))); }
   vec2 dir = uv - 0.5;
@@ -65,6 +88,40 @@ void main(){
   col = mix(col, col * vec3(1.9, 0.38, 0.32) + vec3(0.05, 0.0, 0.0), uShock * 0.7);
   col += vec3(0.05, 0.06, 0.08) * uFlash; // a lightning flash lifts the whole frame a little, cold
   col = aces(col);
+  if (uTrip > 0.0) {
+    float lt = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    vec3 rb = 0.5 + 0.5 * cos(6.2831853 * (vec3(0.0, 0.33, 0.67) + uTime * 0.25 + length(p) * 1.5 + lt * 0.6));
+    // hue turns further where it is brighter: gradients become bands of colour
+    col = hueTurn(col, uHue + lt * 2.4 * uTrip);
+    col = max(mix(vec3(lt), col, 1.0 + uSat), 0.0);
+    // neon outlines where the picture steps in brightness
+    vec2 px = 1.0 / uRes;
+    float e = abs(lumAt(uv + vec2(px.x, 0.0)) - lumAt(uv - vec2(px.x, 0.0))) + abs(lumAt(uv + vec2(0.0, px.y)) - lumAt(uv - vec2(0.0, px.y)));
+    col += rb * smoothstep(0.03, 0.25, e * uExposure) * uEdge;
+    // the dose: colour spreading from where the needle went in
+    if (uInj > 0.0) {
+      vec2 q = (vUv - uInjPt) * vec2(uOut.x / uOut.y, 1.0);
+      float nz = vnoise(vUv * 4.0 + vec2(uTime * 0.2, -uTime * 0.13)) * 0.6 + vnoise(vUv * 9.0 - uTime * 0.31) * 0.4;
+      float dI = length(q) + (nz - 0.5) * 0.35;
+      float fr = smoothstep(uInj, uInj - 0.45, dI);
+      vec3 ink = 0.5 + 0.5 * cos(6.2831853 * (vec3(0.0, 0.33, 0.67) + nz * 1.3 + lt * 0.8 - uTime * 0.12));
+      col = mix(col, col * 0.6 + ink * (0.12 + 0.75 * lt), fr * 0.55 * uTrip);
+    }
+    // a fractal veil, folding over itself (the kali set)
+    if (uFract > 0.0) {
+      vec2 z = (vUv - 0.5) * vec2(uOut.x / uOut.y, 1.0) * 1.7;
+      float cs = cos(uTime * 0.05), sn = sin(uTime * 0.05);
+      z = mat2(cs, -sn, sn, cs) * z;
+      float acc = 0.0, pr = 0.0;
+      for (int i = 0; i < 8; i++) {
+        z = abs(z) / max(dot(z, z), 1e-3) - vec2(0.83 + 0.06 * sin(uTime * 0.21), 0.61 + 0.05 * cos(uTime * 0.17));
+        float m = length(z); acc += exp(-abs(m - pr) * 3.0); pr = m;
+      }
+      vec3 fc = 0.5 + 0.5 * cos(6.2831853 * (acc * 0.12 + vec3(0.0, 0.33, 0.67) + uTime * 0.07));
+      col = mix(col, col * 0.55 + fc * (0.2 + lt), uFract * smoothstep(0.6, 3.2, acc));
+    }
+    col = mix(col, rb * 1.15, uFlood);
+  }
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   col = mix(col, vec3(l), clamp(uDesat + uFear * 0.3, 0.0, 1.0));
   col *= mix(vec3(0.84, 1.0, 0.9), vec3(1.06, 1.0, 0.88), smoothstep(0.0, 0.5, l));
@@ -111,6 +168,21 @@ void main(){
   gl_FragColor = vec4(c, 1.0);
 }`;
 
+// the trip's trails: the new frame over the last one, which is held a little zoomed, turned and hue-shifted, and
+// fades; done at half resolution and laid over the sharp frame
+const FEEDBACK = /* glsl */ `precision highp float; uniform sampler2D tCur, tPrev; uniform float uKeep, uZoom, uRot, uHueStep, uAsp; varying vec2 vUv;
+vec3 hueTurn(vec3 c, float a){ const vec3 k = vec3(0.57735); float ca = cos(a); return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca); }
+void main(){
+  vec3 cur = texture2D(tCur, vUv).rgb;
+  vec2 c = (vUv - 0.5) * vec2(uAsp, 1.0);
+  float cs = cos(uRot), sn = sin(uRot);
+  c = mat2(cs, -sn, sn, cs) * c / uZoom;
+  vec3 prev = hueTurn(texture2D(tPrev, c / vec2(uAsp, 1.0) + 0.5).rgb, uHueStep) * uKeep;
+  gl_FragColor = vec4(max(cur, prev), 1.0);
+}`;
+const TRAILS = /* glsl */ `precision highp float; uniform sampler2D tCur, tTrail; uniform float uTrail; varying vec2 vUv;
+void main(){ vec3 c = texture2D(tCur, vUv).rgb, t = texture2D(tTrail, vUv).rgb; gl_FragColor = vec4(max(c, mix(c, t, uTrail)), 1.0); }`;
+
 export class Post {
   rt: THREE.WebGLRenderTarget;
   mat: THREE.ShaderMaterial;
@@ -120,6 +192,10 @@ export class Post {
   cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   internalH = 540;
   scale = 1;
+  // the trip's feedback buffers and its knobs (set per frame by the finale)
+  rtC: THREE.WebGLRenderTarget; fbA: THREE.WebGLRenderTarget; fbB: THREE.WebGLRenderTarget; fb: THREE.ShaderMaterial; trails: THREE.ShaderMaterial;
+  trip = { on: false, keep: 0.85, trail: 0.5, zoom: 1, rot: 0, hue: 0 };
+  private fresh = true;
   u: Record<string, THREE.IUniform>;
 
   constructor(private renderer: THREE.WebGLRenderer) {
@@ -143,7 +219,13 @@ export class Post {
       tDepth: { value: this.rt.depthTexture }, uNear: { value: 0.05 }, uFar: { value: 60 }, uTan: { value: new THREE.Vector2(1, 1) }, uCamWorld: { value: new THREE.Matrix4() },
       uHaze: { value: 0 }, uSteps: { value: 10 }, uTorchPos: { value: new THREE.Vector3() }, uTorchDir: { value: new THREE.Vector3(0, 0, -1) },
       uTorchCos: { value: 0.9 }, uTorchCosIn: { value: 0.95 }, uTorchRange: { value: 16 },
+      uTrip: { value: 0 }, uKal: { value: 0 }, uKalN: { value: 6 }, uHue: { value: 0 }, uSat: { value: 0 }, uEdge: { value: 0 }, uInj: { value: 0 },
+      uBreathe: { value: 0 }, uFract: { value: 0 }, uFlood: { value: 0 }, uInjPt: { value: new THREE.Vector2(0.1, 0.5) },
     };
+    const o8 = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false };
+    this.rtC = new THREE.WebGLRenderTarget(4, 4, o8); this.fbA = new THREE.WebGLRenderTarget(4, 4, o8); this.fbB = new THREE.WebGLRenderTarget(4, 4, o8);
+    this.fb = new THREE.ShaderMaterial({ uniforms: { tCur: { value: null }, tPrev: { value: null }, uKeep: { value: 0.85 }, uZoom: { value: 1 }, uRot: { value: 0 }, uHueStep: { value: 0 }, uAsp: { value: 1 } }, vertexShader: VERT, fragmentShader: FEEDBACK, depthTest: false, depthWrite: false });
+    this.trails = new THREE.ShaderMaterial({ uniforms: { tCur: { value: null }, tTrail: { value: null }, uTrail: { value: 0 } }, vertexShader: VERT, fragmentShader: TRAILS, depthTest: false, depthWrite: false });
     this.mat = new THREE.ShaderMaterial({ uniforms: this.u, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false });
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat);
     quad.frustumCulled = false;
@@ -161,6 +243,10 @@ export class Post {
     this.bloomTexel.set(1 / bw, 1 / bh);
     this.u.uRes.value.set(iw, ih);
     this.u.uOut.value.set(w, h);
+    this.rtC.setSize(w, h);
+    const fw = Math.max(2, Math.round(w / 2)), fh = Math.max(2, Math.round(h / 2));
+    this.fbA.setSize(fw, fh); this.fbB.setSize(fw, fh); this.fresh = true;
+    this.fb.uniforms.uAsp.value = w / h;
   }
 
   bloomTexel = new THREE.Vector2(1, 1);
@@ -199,8 +285,19 @@ export class Post {
       bu.tSrc.value = this.b1.texture; bu.uDir.value.set(this.bloomTexel.x * k, 0); this.pass(this.blur, this.b2);
       bu.tSrc.value = this.b2.texture; bu.uDir.value.set(0, this.bloomTexel.y * k); this.pass(this.blur, this.b1);
     }
-    this.pass(this.mat, null);
+    if (!this.trip.on) { this.fresh = true; this.pass(this.mat, null); return; }
+    // the trip: the frame into a buffer, the trails from it and the last ones, both to the screen
+    this.pass(this.mat, this.rtC);
+    const f = this.fb.uniforms, tr = this.trip;
+    if (this.fresh) { this.fresh = false; r.setRenderTarget(this.fbB); r.clear(); }
+    f.tCur.value = this.rtC.texture; f.tPrev.value = this.fbB.texture; f.uKeep.value = tr.keep; f.uZoom.value = tr.zoom; f.uRot.value = tr.rot; f.uHueStep.value = tr.hue;
+    this.pass(this.fb, this.fbA);
+    const tu = this.trails.uniforms; tu.tCur.value = this.rtC.texture; tu.tTrail.value = this.fbA.texture; tu.uTrail.value = tr.trail;
+    this.pass(this.trails, null);
+    const sw = this.fbA; this.fbA = this.fbB; this.fbB = sw;
   }
+  /** compile the trip's passes ahead of time */
+  warmTrip() { const on = this.trip.on; this.trip.on = true; this.render(new THREE.Scene(), this.cam); this.trip.on = on; }
 }
 
 // Dust motes that only show up inside the torch beam.

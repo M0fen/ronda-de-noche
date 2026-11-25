@@ -163,6 +163,9 @@ export class Story {
     G.director.phase = 1; G.nurse.phaseMul = 1.25;
     G.flicker = 2.5;
     G.player.shake = 0.35;
+    // far away, something in Cirugía knows the fuse is out of its box
+    this.after(2.6, () => { G.audio.knock({ x: 60.4, y: 1.4, z: 8 }); G.subtitle('Golpes en las puertas de Cirugía · lejos'); });
+    this.after(4.2, () => G.bark('knock', '¿Eso fue en Cirugía? Allá no hay nadie. No debería haber nadie.'));
     this.setObjective('Lleva el fusible al cuarto eléctrico. La puerta de la lencería hacia recepción se destranca desde este lado.');
   }
 
@@ -183,8 +186,7 @@ export class Story {
       G.audio.install(); G.player.shake = 0.5; G.input.rumble(0.6, 0.3, 300);
       this.flags.installed = true;
       this.setObjective('Fusible 1 de 4 restaurado. Al norte, las puertas de cirugía empiezan a zumbar.');
-      this.save();
-      this.after(1.8, () => G.endSlice());
+      G.endSlice(); // the power comes back (finale.ts)
     }
   }
 
@@ -383,6 +385,16 @@ export class Story {
       if (!this.flags.wardArm) { this.flags.wardArm = true; this.after(5.5, () => { if (!this.flags.wardEvent && G.mode === 'play') this.startWardEvent(); }); }
     }
 
+    // at the barricade, the doors of Cirugía: wheels behind them, once; later, after the fuse, eyes in the round window
+    if (ar?.id === 'north' && cell && cell.cx >= 21 && !this.flags.cirWheels && N.state !== 'chase') {
+      this.flags.cirWheels = true;
+      for (let i = 0; i < 3; i++) this.after(0.6 + i * 0.85, () => G.audio.gurney({ x: 60.6, y: 0.5, z: 8.2 - i * 0.3 }, 0.45));
+      this.after(0.9, () => G.subtitle('Ruedas de camilla, detrás de las puertas de Cirugía'));
+      this.after(3.4, () => G.bark('wheels', 'Hay alguien adentro. Con una camilla. Sin luz.'));
+    }
+    if (ar?.id === 'north' && cell && cell.cx >= 22 && this.flags.fuse && !this.flags.cirEyes && P.fwd.x > 0.6 && N.state !== 'chase') {
+      this.flags.cirEyes = true; this.after(0.8, () => G.dressing.peek());
+    }
     // darkness pressure: hallucinations
     const hallOn = !G.settings.reduced && P.darkT > 20 && !P.inLocker;
     G.post.u.uHalluc.value += ((hallOn ? Math.min(1, (P.darkT - 20) / 25) : 0) - G.post.u.uHalluc.value) * Math.min(1, dt * 2);

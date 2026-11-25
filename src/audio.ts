@@ -669,6 +669,242 @@ export class AudioSys {
   // pause: the world fades out but the context keeps running, so the menu still ticks
   suspend(on: boolean) { if (!this.ctx) return; this.ctx.resume(); this.world.gain.setTargetAtTime(on ? 0 : 1, this.ctx.currentTime, on ? 0.05 : 0.12); }
 
+  // ---- the end of the first part (finale.ts) ---------------------------------------------------------------
+  private fin: {
+    loops: { stop: (t: number) => void }[]; tubes: Map<string, (t: number) => void>;
+    trip: { out: GainNode; shepG: GainNode; shep: { o: OscillatorNode; g: GainNode }[]; ph: number; nodes: AudioScheduledSourceNode[]; sparkle: number; swell: number } | null;
+    syr: { g: GainNode; nodes: AudioScheduledSourceNode[] } | null; hum: { s: AudioBufferSourceNode; g: GainNode } | null;
+  } = { loops: [], tubes: new Map(), trip: null, syr: null, hum: null };
+  /** a spatial chain that lives as long as the finale (one-shots use out(), which lets go after six seconds) */
+  private loopOut(pos: V3, bus: GainNode = this.sfx) { const p = this.panner(); this.setPos(p, pos); p.connect(bus); return p; }
+  private now() { return this.ctx!.currentTime; }
+  finale(on: boolean) {
+    if (!this.ctx) return;
+    const t = this.now();
+    if (on) { this.world.gain.cancelScheduledValues(t); this.world.gain.setTargetAtTime(1, t, 0.1); return; }
+    for (const l of this.fin.loops) l.stop(t);
+    this.fin.loops = []; this.fin.tubes.clear(); this.tripStop(0.4); this.syringe(false); this.tripHum(false);
+  }
+  /** the main breaker going home, then the building's 60 Hz coming up under the floor */
+  powerOn() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now(), s = this.sfx;
+    this.tone(this.uiBus, t, 'sine', 74, 30, 0.7, 0.9, 0.003);
+    this.burst(s, t, 0.16, 'bandpass', 1400, 1.4, 0.55);
+    this.burst(s, t + 0.012, 0.4, 'highpass', 4200, 0.7, 0.2);
+    this.sample('impact', s, t, 0.35, 0.6, 0);
+    const g = ctx.createGain(); g.gain.value = 0;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+    lp.connect(g).connect(this.amb);
+    const oscs: OscillatorNode[] = [];
+    for (const [f, a] of [[60, 0.5], [120, 0.32], [180, 0.14], [240, 0.07], [300, 0.03]]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; const og = ctx.createGain(); og.gain.value = a * 0.1; o.connect(og).connect(lp); o.start(t); oscs.push(o); }
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.9, t + 0.35); g.gain.setTargetAtTime(0.22, t + 0.5, 1.4);
+    this.fin.loops.push({ stop: tt => { g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, 0.2); for (const o of oscs) o.stop(tt + 1.5); } });
+  }
+  /** a fluorescent tube's starter: tink, tink-tink, then it catches and buzzes until it goes */
+  tubeOn(pos: V3, gain = 1) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now(), o = this.out(pos, 0), key = `${pos.x},${pos.z}`;
+    for (const d of [0, 0.29, 0.43, 0.78]) { const f = 3800 + Math.random() * 1400; this.tone(o, t + d, 'sine', f, f * 0.92, 0.05, 0.06 * gain, 0.001); this.burst(o, t + d, 0.025, 'highpass', 5200, 0.8, 0.07 * gain); }
+    if (this.fin.tubes.has(key)) return;
+    const p = this.loopOut(pos);
+    const b = ctx.createOscillator(); b.type = 'sawtooth'; b.frequency.value = 120;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600 + Math.random() * 600; bp.Q.value = 2.2;
+    const g = ctx.createGain(); g.gain.value = 0;
+    b.connect(bp).connect(g).connect(p); b.start(t);
+    g.gain.setTargetAtTime(0.018 * gain, t + 0.85, 0.08);
+    const stop = (tt: number) => { g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, 0.03); b.stop(tt + 0.4); };
+    this.fin.tubes.set(key, stop); this.fin.loops.push({ stop });
+  }
+  /** the tube dies: a pop, the buzz gone */
+  tubeOff(pos: V3) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 0);
+    this.burst(o, t, 0.06, 'bandpass', 2600, 1.2, 0.18); this.tone(o, t, 'sine', 900, 300, 0.08, 0.05);
+    for (const [k, stop] of this.fin.tubes) { const [x, z] = k.split(',').map(Number); if (Math.hypot(x - pos.x, z - pos.z) < 3) { stop(t); this.fin.tubes.delete(k); } }
+  }
+  /** the strobe: the tube catching again */
+  tubeTick(pos: V3) { if (!this.ctx) return; const t = this.now(), o = this.out(pos, 0); this.tone(o, t, 'sine', 4300, 4000, 0.04, 0.05, 0.001); this.burst(o, t, 0.09, 'bandpass', 1900, 2, 0.06); }
+  /** far away, an electric bolt letting go, and the corridor answering */
+  maglock(pos: V3) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 1.2);
+    this.burst(o, t, 0.09, 'lowpass', 1100, 0.8, 1.3); this.tone(o, t, 'square', 150, 80, 0.14, 0.4);
+    this.tone(o, t + 0.01, 'sine', 2900, 2700, 0.5, 0.05);
+    this.burst(this.verbIn, t + 0.02, 0.6, 'lowpass', 700, 0.7, 0.4);
+  }
+  /** two doors swinging open on dry hinges and hitting the wall, far away */
+  farDoors(pos: V3) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now(), o = this.out(pos, 1.2);
+    const s = ctx.createOscillator(); s.type = 'sawtooth'; s.frequency.setValueAtTime(260, t); s.frequency.linearRampToValueAtTime(140, t + 0.9);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 9; bp.frequency.value = 900;
+    const g = ctx.createGain(); this.env(g.gain, t, 0.15, 0.06, 0.8); s.connect(bp).connect(g).connect(o); s.start(t); s.stop(t + 1.1);
+    for (const d of [0.95, 1.12]) { this.burst(o, t + d, 0.25, 'lowpass', 600, 0.8, 0.9); this.tone(o, t + d, 'sine', 110, 60, 0.3, 0.4); }
+    this.burst(this.verbIn, t + 0.97, 0.9, 'lowpass', 500, 0.7, 0.35);
+  }
+  /** something on the other side of a heavy door, hitting it twice */
+  knock(pos: V3) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 2);
+    for (const d of [0, 0.42]) { this.burst(o, t + d, 0.22, 'lowpass', 420, 0.9, 1.2); this.tone(o, t + d, 'sine', 90, 52, 0.28, 0.6); }
+    this.burst(this.verbIn, t + 0.03, 0.9, 'lowpass', 380, 0.7, 0.3);
+  }
+  /** a gurney castor that wants oil, and the frame rattling over the tiles */
+  gurney(pos: V3, k = 1) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 0);
+    if (!this.sample('squeak', o, t, 0.55 * k, 0.6, 0.08)) { const f = 1250 + Math.random() * 250; this.tone(o, t, 'sine', f, f * 1.3, 0.24, 0.06 * k, 0.03); }
+    this.burst(o, t + 0.04, 0.05, 'bandpass', 2400, 5, 0.05 * k);
+    this.burst(o, t + 0.31, 0.04, 'bandpass', 3100, 6, 0.03 * k);
+  }
+  gurneyStop(pos: V3) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 0);
+    this.tone(o, t, 'sine', 180, 110, 0.18, 0.35); this.burst(o, t, 0.12, 'lowpass', 900, 0.8, 0.4);
+    for (const f of [1170, 1730, 2610]) this.tone(o, t, 'sine', f, f * 0.995, 0.5, 0.025);
+  }
+  /** a man's shoe on wet tile: heavier and slower than hers */
+  bigStep(pos: V3, k = 1) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 0);
+    if (!this.sample('nurse_step', o, t, 1.0 * k, 0.74, 0.04)) this.burst(o, t, 0.08, 'lowpass', 500, 0.8, 0.4 * k);
+    this.tone(o, t, 'sine', 95, 48, 0.12, 0.3 * k, 0.002);
+  }
+  doorCreakAt(pos: V3) { this.doorCreak(pos, 0); }
+  /** a recorded line from someone standing there */
+  voiceAt(name: string, pos: V3, gain = 1, rate = 1) { if (!this.ctx) return false; return this.sample(name, this.out(pos, 0, this.voice), this.now(), gain, rate, 0); }
+  /** a line said into your ear */
+  voiceClose(name: string, pan = 0, gain = 1) {
+    if (!this.ctx) return false;
+    const sp = this.ctx.createStereoPanner(); sp.pan.value = pan; sp.connect(this.voice);
+    return this.sample(name, sp, this.now(), gain, 1, 0);
+  }
+  sheetYank() {
+    if (!this.ctx) return;
+    const t = this.now();
+    this.sample('sheet', this.sfx, t, 1.1, 1.7, 0);
+    const b = this.burst(this.sfx, t, 0.45, 'bandpass', 300, 0.9, 0.4, 0.05); b.f.frequency.exponentialRampToValueAtTime(2600, t + 0.4);
+  }
+  cloth() { if (!this.ctx) return; const t = this.now(); this.sample('sheet', this.sfx, t, 0.5, 1.35, 0.05); this.burst(this.sfx, t, 0.35, 'bandpass', 1800, 0.7, 0.12, 0.03); }
+  /** the syringe: a glass shimmer, high and unsteady, while it is out */
+  syringe(on: boolean) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now();
+    if (on && !this.fin.syr) {
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(this.sfx);
+      const nodes: AudioScheduledSourceNode[] = [];
+      for (const [f, a] of [[1975.5, 1], [2489, 0.7], [2960, 0.55], [3951, 0.3]]) {
+        const o = ctx.createOscillator(); o.frequency.value = f; const og = ctx.createGain(); og.gain.value = 0.006 * a;
+        const lfo = ctx.createOscillator(); lfo.frequency.value = 3 + Math.random() * 4; const lg = ctx.createGain(); lg.gain.value = 0.004 * a;
+        lfo.connect(lg).connect(og.gain); o.connect(og).connect(g); o.start(t); lfo.start(t); nodes.push(o, lfo);
+      }
+      g.gain.setTargetAtTime(1, t, 0.4);
+      this.fin.syr = { g, nodes };
+    } else if (!on && this.fin.syr) {
+      const s = this.fin.syr; s.g.gain.cancelScheduledValues(t); s.g.gain.setTargetAtTime(0, t, 0.08); for (const o of s.nodes) o.stop(t + 0.6); this.fin.syr = null;
+    }
+  }
+  /** the needle: a tick through skin, the plunger's hiss, the floor dropping away, a ringing, the world under water */
+  inject() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now(), b = this.uiBus;
+    this.burst(b, t, 0.02, 'highpass', 6000, 1, 0.5, 0.001);
+    this.tone(b, t, 'square', 3200, 2400, 0.03, 0.08, 0.001);
+    this.burst(b, t + 0.05, 0.55, 'highpass', 5000, 0.7, 0.18, 0.05);
+    this.tone(b, t + 0.1, 'sine', 90, 28, 2.6, 0.9, 0.01);
+    this.sample('impact', b, t, 0.6, 0.5, 0);
+    const o = ctx.createOscillator(); o.frequency.value = 6100; const g = ctx.createGain(); g.gain.value = 0; o.connect(g).connect(b);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.045, t + 0.3); g.gain.setTargetAtTime(0, t + 1.2, 1.4); o.start(t); o.stop(t + 8);
+    this.muffleTarget = 650;
+  }
+  /** the trip: a slow lydian pad that breathes, glass bells in the hall, reversed swells, and at the end a
+   *  Shepard tone that rises for ever */
+  tripStart() {
+    if (!this.ctx || this.fin.trip) return;
+    const ctx = this.ctx, t = this.now();
+    const out = ctx.createGain(); out.gain.value = 0; out.connect(this.music); out.connect(this.verbIn);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 3; lp.connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.08; const lfoG = ctx.createGain(); lfoG.gain.value = 600; lfo.connect(lfoG).connect(lp.frequency); lfo.start(t);
+    const trem = ctx.createGain(); trem.gain.value = 0.7; trem.connect(lp);
+    const tl = ctx.createOscillator(); tl.frequency.value = 0.27; const tg = ctx.createGain(); tg.gain.value = 0.3; tl.connect(tg).connect(trem.gain); tl.start(t);
+    const nodes: AudioScheduledSourceNode[] = [lfo, tl];
+    for (const f of [73.42, 110, 146.83, 220, 277.18, 329.63, 415.3, 554.37]) for (const d of [-9, 8]) {
+      const o = ctx.createOscillator(); o.type = f < 200 ? 'sawtooth' : 'triangle'; o.frequency.value = f; o.detune.value = d;
+      const g = ctx.createGain(); g.gain.value = (f < 200 ? 0.022 : 0.03) / (1 + f / 900); o.connect(g).connect(trem); o.start(t); nodes.push(o);
+    }
+    const shepG = ctx.createGain(); shepG.gain.value = 0; shepG.connect(out);
+    const shep: { o: OscillatorNode; g: GainNode }[] = [];
+    for (let i = 0; i < 8; i++) { const o = ctx.createOscillator(); const g = ctx.createGain(); g.gain.value = 0; o.connect(g).connect(shepG); o.start(t); shep.push({ o, g }); nodes.push(o); }
+    this.fin.trip = { out, shepG, shep, ph: 0, nodes, sparkle: t + 1, swell: t + 2 };
+  }
+  tripUpdate(dt: number, level: number, rise: number) {
+    const tr = this.fin.trip; if (!this.ctx || !tr) return;
+    const ctx = this.ctx, t = this.now();
+    tr.out.gain.setTargetAtTime(level * 0.9, t, 0.3);
+    tr.shepG.gain.setTargetAtTime(rise * 0.55, t, 0.3);
+    tr.ph = (tr.ph + dt * (0.1 + rise * 0.22)) % 1;
+    const N = tr.shep.length;
+    tr.shep.forEach((v, i) => { const oc = (i + tr.ph) % N; v.o.frequency.setTargetAtTime(40 * Math.pow(2, oc), t, 0.02); v.g.gain.setTargetAtTime(0.05 * Math.exp(-((oc - N / 2) ** 2) / 4), t, 0.05); });
+    if (t > tr.sparkle && level > 0.2) {
+      tr.sparkle = t + 0.18 + Math.random() * 0.6;
+      const f = [1318.5, 1567.98, 1975.53, 2349.3, 2637][Math.floor(Math.random() * 5)] * (Math.random() < 0.3 ? 0.5 : 1);
+      this.tone(this.verbIn, t, 'sine', f, f, 0.9, 0.035 * level, 0.002);
+    }
+    if (t > tr.swell && level > 0.2) {
+      tr.swell = t + 3.2 + Math.random() * 1.5;
+      const s = ctx.createBufferSource(); s.buffer = this.noise;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(3200, t + 1.6);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12 * level, t + 1.6); g.gain.setValueAtTime(0, t + 1.62);
+      s.connect(f).connect(g).connect(tr.out); s.start(t, Math.random(), 1.7);
+    }
+    this.muffleTarget = 650 + 1600 * level + 9000 * rise;
+  }
+  tripStop(fade = 0.5) {
+    const tr = this.fin.trip; if (!this.ctx || !tr) return;
+    const t = this.now(); tr.out.gain.cancelScheduledValues(t); tr.out.gain.setTargetAtTime(0, t, Math.max(0.005, fade / 3));
+    for (const n of tr.nodes) n.stop(t + fade + 0.2);
+    this.fin.trip = null;
+  }
+  /** la otra hums her own song, slower */
+  tripHum(on: boolean) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = this.now();
+    if (on && !this.fin.hum && this.buf.has('hum')) {
+      const s = ctx.createBufferSource(); s.buffer = this.buf.get('hum')!; s.loop = true; s.playbackRate.value = 0.8;
+      const g = ctx.createGain(); g.gain.value = 0; const sp = ctx.createStereoPanner(); sp.pan.value = 0.35;
+      s.connect(g).connect(sp).connect(this.voice); s.start(t);
+      g.gain.setTargetAtTime(0.5, t, 0.8);
+      this.fin.hum = { s, g };
+    } else if (!on && this.fin.hum) { const h = this.fin.hum; h.g.gain.cancelScheduledValues(t); h.g.gain.setTargetAtTime(0, t, 0.25); h.s.stop(t + 1.5); this.fin.hum = null; }
+  }
+  /** the doors of Cirugía opening by themselves: air rushing out, the floor dropping, a chord that is not voices */
+  doorsOpen(pos: V3) {
+    if (!this.ctx) return;
+    const t = this.now(), o = this.out(pos, 0);
+    const b = this.burst(o, t, 1.4, 'bandpass', 300, 0.6, 0.35, 0.4); b.f.frequency.exponentialRampToValueAtTime(2400, t + 1.4);
+    this.tone(o, t, 'sawtooth', 210, 160, 1.1, 0.03, 0.1);
+    this.tone(this.uiBus, t + 0.2, 'sine', 48, 30, 3.5, 0.6, 0.6);
+    for (const f of [220, 277.18, 329.63, 440, 554.37]) { const x = this.tone(this.music, t + 0.3, 'triangle', f, f * 1.003, 5.5, 0.035, 1.8); x.detune.value = (Math.random() - 0.5) * 18; }
+  }
+  /** the hard cut: everything of the finale stops, and the world with it */
+  finaleCut() {
+    if (!this.ctx) return;
+    const t = this.now();
+    for (const l of this.fin.loops) l.stop(t);
+    this.fin.loops = []; this.fin.tubes.clear(); this.tripStop(0.03); this.syringe(false); this.tripHum(false);
+    this.muffleTarget = 20000;
+    this.world.gain.cancelScheduledValues(t); this.world.gain.setTargetAtTime(0, t, 0.015);
+  }
+  /** the title card: one low strike and its long tail */
+  cardHit() {
+    if (!this.ctx) return;
+    const t = this.now(), b = this.uiBus;
+    this.tone(b, t, 'sine', 55, 41, 3.8, 0.55, 0.004); this.burst(b, t, 1.8, 'lowpass', 300, 0.7, 0.3, 0.002);
+    this.sample('impact', b, t, 0.45, 0.55, 0);
+    for (const f of [110, 164.8, 220]) this.tone(b, t + 0.02, 'sine', f, f, 4, 0.035, 0.01);
+  }
+
   // ---- interface ---------------------------------------------------------
   /** a dry interface sample (menus, notes, the map); also plays under the pause menu */
   ui(name: string, gain = 1, rate = 1) { if (!this.ctx) return false; return this.sample(name, this.uiBus, this.ctx.currentTime, gain, rate, 0.04); }

@@ -14,12 +14,13 @@ import { Story } from './story';
 import { FEAR } from './content';
 import { Dressing } from './dressing';
 import { Storm } from './storm';
+import { Finale } from './finale';
 
 // the title shot: Ward B at night, her between the beds, the storm in the windows behind her
 // title shot: you have just found her. Torch on her chest, the ward and the storm behind; she stands on the right third
 const TITLE = { x: 12.0, z: 23.35, yaw: 1.32, pitch: -0.06, nx: 9.1, nz: 21.9, nyaw: 1.107 };
 
-type Mode = 'title' | 'calibrate' | 'intro' | 'play' | 'pause' | 'note' | 'journal' | 'map' | 'caught' | 'caughtUI' | 'end';
+type Mode = 'title' | 'calibrate' | 'intro' | 'play' | 'pause' | 'note' | 'journal' | 'map' | 'caught' | 'caughtUI' | 'cine' | 'end';
 
 export class Game {
   settings: Settings = loadSettings();
@@ -28,7 +29,7 @@ export class Game {
   post!: Post; dust!: THREE.Points; tex!: Tex;
   level!: Level; props!: Props; audio = new AudioSys(); input!: Input; ui!: UI;
   player!: Player; nurse!: Nurse; director!: Director; story!: Story;
-  dressing!: Dressing; storm!: Storm;
+  dressing!: Dressing; storm!: Storm; finale!: Finale;
   noises: Noise[] = []; time = 0; mode: Mode = 'title';
   stats = { time: 0, caught: 0, thrown: 0, notes: 0, records: 0, hides: 0 };
   flicker = 0; fear = 0; caughtT = 0; journalBack = 'pause'; noteFromJournal = false;
@@ -69,6 +70,8 @@ export class Game {
     this.story = new Story(this);
     this.dressing = new Dressing(this);
     this.storm = new Storm(this);
+    this.finale = new Finale(this);
+    this.finale.done = () => this.showEnd();
     let lastFlash = -1;
     const titleEl = document.getElementById('title')!;
     this.storm.onFlash = k => { const v = Math.round(k * 50) / 50; if (v !== lastFlash) { lastFlash = v; titleEl.style.setProperty('--flash', String(v)); } };
@@ -84,15 +87,17 @@ export class Game {
     // if the page can't lock the pointer at all (some embedded viewers), fall back to a free cursor
     document.addEventListener('pointerlockerror', () => { if (performance.now() - this.lockClickT < 2000) this.enableFreeLook(); });
     this.canvas.addEventListener('click', () => { if (this.mode === 'play' && this.ui.device === 'kbm') { this.lockClickT = performance.now(); this.lock(); } });
-    document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'play') this.pause(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.mode === 'play') this.pause(); if (this.mode === 'cine') this.audio.suspend(document.hidden); });
 
     this.setupTitle();
     this.applySettings();
     this.resize();
     // compile every shader up front so nothing hitches when a new room comes into view
     this.player.torch.on = true; this.player.updateLight();
+    this.finale.warm(true); // the finale's people and things too, so its first frames don't stall
     this.renderer.compile(this.scene, this.camera);
     this.post.render(this.scene, this.camera); // warm-up pass also builds the shadow shaders
+    this.finale.warm(false); this.post.warmTrip();
     this.player.torch.on = false; this.player.updateLight();
     if (/debug/.test(location.hash) || /debug=1/.test(location.search)) {
       const { Debug } = await import('./debug');
@@ -252,11 +257,11 @@ export class Game {
   }
   quit() { location.reload(); }
   restartAll() { location.reload(); }
-  endSlice() { this.mode = 'end'; this.unlock(); this.ui.hud(false); this.ui.end(); T.ev('end', { time: Math.round(this.stats.time) }); T.progress({ ended: true }); T.flush(); }
-  continueAfterEnd() {
-    this.mode = 'play'; this.ui.show(''); this.ui.hud(true); this.lock();
-    this.story.setObjective('Explora. Cirugía, el anfiteatro y el archivo se abren en el juego completo.');
-  }
+  /** the end of the first part: the scene (finale.ts), then the end screen */
+  endSlice() { T.ev('finale'); this.finale.start(); }
+  showEnd() { this.mode = 'end'; this.unlock(); this.ui.hud(false); this.ui.end(); T.ev('end', { time: Math.round(this.stats.time) }); T.progress({ ended: true }); T.flush(); }
+  /** from the end screen: the scene once more */
+  continueAfterEnd() { if (this.mode !== 'end') return; T.ev('replay'); this.finale.start(); }
 
   // ---- events from the world ----------------------------------------------------
   onGrab() {
@@ -562,6 +567,7 @@ export class Game {
       case 'title': this.title(dt); break;
       case 'play': this.play(dt); break;
       case 'caught': this.caught(dt); break;
+      case 'cine': this.input.read(dt); this.finale.update(dt); break;
       case 'intro': { const a = this.input.read(dt); if (a.any || a.interact) this.beginPlay(); break; }
       case 'pause': { const a = this.input.read(dt); if (a.pause) this.resume(); break; }
       case 'note': { const a = this.input.read(dt); if (a.pause || a.interact) this.closeNote(); break; }
@@ -593,7 +599,7 @@ export class Game {
   // dynamic resolution keeps phones near 30 fps
   private adapt(dt: number) {
     this.frameAvg += (dt * 1000 - this.frameAvg) * 0.05;
-    if (this.mode !== 'play') return;
+    if (this.mode !== 'play' && this.mode !== 'cine') return;
     if (this.frameAvg > 38) { this.slowT += dt; this.fastT = 0; } else if (this.frameAvg < 20) { this.fastT += dt; this.slowT = 0; } else { this.slowT = this.fastT = 0; }
     if (this.slowT > 2 && this.post.scale > 0.6) { this.post.scale -= 0.15; this.slowT = 0; this.resize(); }
     if (this.fastT > 6 && this.post.scale < 1) { this.post.scale = Math.min(1, this.post.scale + 0.1); this.fastT = 0; this.resize(); }

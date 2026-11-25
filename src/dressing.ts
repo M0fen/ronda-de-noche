@@ -569,6 +569,12 @@ export class Dressing {
   }
 
   // ---- the three double doors at the ends of the building ---------------------------------------------
+  theatre: THREE.Object3D[] = [];
+  /** eyes in the left porthole of Cirugía, for a moment */
+  peek: () => void = () => { };
+  portholeM = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  /** the doors of Cirugía: 0 shut, 1 swung wide open toward the corridor */
+  theatreDoors(k: number) { for (const h of this.theatre) h.rotation.y = h.userData.side * k * 1.45; }
   private specialDoors() {
     const G = this.G, ex = this.ex, A = G.audio;
     const frameM = lam({ color: 0x5c6258 }), steel = lam({ color: 0xa4a69e }), led = lam({ color: 0x300606, emissive: 0x3a0604 });
@@ -578,7 +584,14 @@ export class Dressing {
       const opts = (side: 'left' | 'right', seed: number) => ({ handle: side, seed, window: kind === 'theatre' ? 'round' as const : 'wired' as const, push: kind === 'exit', tone: kind === 'theatre' ? [150, 160, 150] as [number, number, number] : kind === 'stairs' ? [118, 92, 70] as [number, number, number] : undefined, stencil: kind === 'stairs' ? 'ESCALERAS' : kind === 'theatre' ? 'NO PASAR' : undefined });
       for (const s of [-1, 1]) {
         const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.94, 2.3, 0.045), [frameM, frameM, frameM, frameM, lam({ map: doorLeaf(opts(s < 0 ? 'right' : 'left', 600 + s + kind.length * 7)) }), frameM]);
-        leaf.position.set(s * 0.475, 1.15, 0.025); leaf.castShadow = true; leaf.receiveShadow = true; g.add(leaf);
+        leaf.position.set(s * 0.475, 1.15, 0.025); leaf.castShadow = true; leaf.receiveShadow = true;
+        if (kind === 'theatre') {
+          // on hinges at the jambs, so the finale can swing them open (toward the corridor)
+          const hinge = new THREE.Object3D(); hinge.position.set(s * 0.95, 0, 0.025); hinge.userData.dynamic = true; hinge.userData.side = s; g.add(hinge);
+          leaf.position.set(-s * 0.475, 1.15, 0); hinge.add(leaf); this.theatre.push(hinge);
+          // the round window: from inside, a slow coloured light that should not be there
+          const glow = new THREE.Mesh(new THREE.CircleGeometry(0.15, 20), this.portholeM); glow.scale.set(1, 1.23, 1); glow.position.set(-s * 0.475, 1.743, 0.0235); hinge.add(glow);
+        } else g.add(leaf);
         if (kind === 'exit') { this.cyl(0.018, 0.018, 0.78, steel, s * 0.48, 1.02, 0.1, g, 8).rotation.z = Math.PI / 2; for (const e of [0.1, 0.86]) this.box(0.04, 0.06, 0.06, steel, s * e, 1.02, 0.07, g); }
         else this.box(0.03, 0.3, 0.03, steel, s * 0.07, 1.05, 0.075, g); // pull handles at the meeting stiles
       }
@@ -588,11 +601,14 @@ export class Dressing {
     make(this.wall(15, 24, 'N', -1.0, 0), 'exit');
     make(this.wall(30, 3, 'W', 1.0, 0), 'theatre');
     make(this.wall(1, 3, 'E', -1.0, 0), 'stairs');
+    // the portholes of Cirugía: a light inside that slowly turns through the colours; stronger once the fuse is out
+    this.anim.push((dt, t) => { const k = (G.props.fuse?.taken ? 1.15 : 0.7) * (0.72 + 0.28 * Math.sin(t * 0.9)); this.portholeM.color.setHSL((t * 0.03) % 1, 0.85, 0.5).multiplyScalar(k); });
     // eyes in the left porthole of surgery, once
     const glintM = new THREE.SpriteMaterial({ map: G.tex.glint, color: 0xd8e4dc, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0 });
     const eyes = [0, 1].map(i => { const s = new THREE.Sprite(glintM); s.scale.setScalar(0.045); s.position.set(59.93, 1.74, 8 + 0.475 + (i ? -0.03 : 0.03)); this.group.add(s); return s; });
     let eyeT = 0;
     this.anim.push(dt => { if (eyeT > 0) { eyeT -= dt; glintM.opacity = Math.min(1, eyeT * 4, (0.9 - eyeT) * 10) * 0.9; if (eyeT <= 0) glintM.opacity = 0; } });
+    this.peek = () => { if (!G.settings.reduced) eyeT = 0.9; };
     void eyes;
     const items = G.story.items;
     const th = items.find(i => i.id === 'theatre'), stairs = items.find(i => i.id === 'stairs'), exit = items.find(i => i.id === 'exit');

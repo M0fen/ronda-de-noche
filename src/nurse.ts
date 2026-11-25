@@ -629,6 +629,7 @@ export class Nurse {
     this.state = state; this.t = 0; this.awareness = 0; this.locker = null; this.sawEnter = false; this.lamp = null;
     this.hint = false; this.goal = null; this.path = []; this.oneShot = ''; this.script = null; this.glintBoost = 0; this.lostT = 0;
     this.amb = null; this.offRound = true; this.stop = null; this.pause = null;
+    if (state === 'frozen') this.humWant = false; // standing still, she only hums when told to
     this.play('idle', 0);
   }
 
@@ -1197,7 +1198,7 @@ export class Nurse {
     const head = this.rig.head.getWorldPosition(new THREE.Vector3());
     const occ = this.game.level.occlusion(this.pos.x, this.pos.z, P.eye.x, P.eye.z);
     A.nurse({ x: head.x, y: head.y, z: head.z }, occ);
-    const hum = s === 'script' ? this.humWant
+    const hum = s === 'script' || s === 'frozen' ? this.humWant
       : s === 'patrol' || s === 'leave' || s === 'lightoff' || s === 'idle' || (s === 'ambush' && this.amb?.phase === 'away');
     if (hum !== this.wasHumming) {
       A.hum(hum);

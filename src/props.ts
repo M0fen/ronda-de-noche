@@ -782,8 +782,10 @@ export class Props {
     }
   }
 
+  /** while the finale borrows the lamps, they are left alone here */
+  hold = false;
   update(dt: number, t: number, flickerBoost: number, reduced: boolean) {
-    for (const e of this.em) {
+    for (const e of this.hold ? [] : this.em) {
       e.t += dt;
       // slow, irregular dips; never faster than ~3 per second
       const w = Math.sin(t * 0.7 + e.phase) * 0.5 + Math.sin(t * 2.3 + e.phase * 3) * 0.3 + Math.sin(t * 5.1 + e.phase) * 0.2 * (reduced ? 0 : 1);
@@ -793,7 +795,7 @@ export class Props {
       if (e.beacon) e.lens.emissive.setRGB(0.95 * k, 0.55 * k, 0.16 * k); else e.lens.emissive.setRGB(0.6 * k, 0.1 * k, 0.06 * k);
       if (e.halo) (e.halo.material as THREE.SpriteMaterial).opacity = 0.42 * Math.max(0.15, k);
     }
-    for (const l of this.lamps) {
+    for (const l of this.hold ? [] : this.lamps) {
       const target = l.on ? 5.5 : 0;
       l.light.intensity += (target - l.light.intensity) * Math.min(1, dt * 12);
       l.bulb.emissive.setRGB(l.on ? 1 : 0, l.on ? 0.8 : 0, l.on ? 0.55 : 0);

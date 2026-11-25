@@ -195,14 +195,21 @@
 
   <section id="end" class="screen" hidden>
     <div class="panel wide">
-      <p class="eyebrow">Tablero eléctrico · circuito del pabellón</p>
-      <h2 class="big grit">Fusible 1 de 4 restaurado</h2>
-      <p>Al norte, las puertas de cirugía empiezan a zumbar. Ella sigue haciendo su ronda.</p>
+      <p class="eyebrow">Fin de la primera parte · fusible 1 de 4</p>
+      <h2 class="big grit">Te llevaron a Cirugía</h2>
+      <p>Prendiste la luz y les abriste la puerta. La etapa 2 empieza en la sala de colores. Ella sigue haciendo su ronda.</p>
       <dl id="end-stats"></dl>
-      <nav class="menu row-menu"><button id="btn-end-continue">Seguir explorando</button><button id="btn-end-restart">Jugar otra vez</button><button id="btn-end-title">Título</button></nav>
+      <nav class="menu row-menu"><button id="btn-end-continue">Ver la escena otra vez</button><button id="btn-end-restart">Jugar otra vez</button><button id="btn-end-title">Título</button></nav>
     </div>
   </section>
 
+  <!-- the end of the first part (finale.ts): letterbox, its own captions, hold to skip, the title card -->
+  <div id="cine" hidden>
+    <div class="cine-bar top"></div><div class="cine-bar bot"></div>
+    <p id="cine-sub"></p>
+    <button id="cine-skip" type="button" aria-label="Mantén pulsado para saltar la escena"><span class="ring"></span><span class="lbl"><span class="kb">Mantén <kbd>Esc</kbd> para saltar</span><span class="tc">Mantén para saltar</span></span></button>
+    <div id="cine-card" aria-live="polite"><p class="eyebrow">Fin de la primera parte</p><h2 class="grit">Etapa 2</h2><p class="name">La sala de colores</p><p class="where">Cirugía · Hospital San Jorge · 1992</p></div>
+  </div>
   <div id="rotate" hidden><p>Gira el celular para jugar en horizontal.</p></div>
   <p id="boot-error" hidden></p>
 </div>
