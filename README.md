@@ -36,6 +36,26 @@ En celular los botones son redondos, en arco alrededor del pulgar derecho: el gr
 
 Las puertas se cierran a tu espalda, el personaje prende la linterna solo y la mirada se va a la luz ámbar que respira sobre la puerta del cuarto eléctrico (desde ahí se oye zumbar el tablero); un letrero en la pared norte apunta hacia allá. Si a los 30 segundos no has llegado, el personaje vuelve a señalar el camino; al minuto, saca el plano. Lo mismo para ir al Pabellón B después del tablero.
 
+## Su ronda (y cómo aprenderla)
+
+La Jefa no deambula: hace una ronda fija, la de la *Hoja de ronda* que está sobre el mostrador de la recepción. Pasillo principal, la Sala Santa Clara cama por cama (mira cada almohada; si estás debajo y respiras o tienes la linterna prendida, se agacha), la estación de enfermería, el pasillo norte, la sala de estar y su televisor, y de vuelta; la ronda siguiente la hace al revés. Cuando te llevas el fusible, la ronda cambia: llega a la lencería y a la recepción, por donde tienes que volver.
+
+La regla que se puede aprender: **mientras tararea, está en la ronda; si se calla, te está buscando**. El personaje lo dice la primera vez que la ve, y en la hoja de ronda alguien lo anotó a lápiz.
+
+Lo que hace que se note lista:
+- **Ve como se ve en la oscuridad**: de frente, lejos si estás iluminado; de reojo solo te nota si corres o llevas luz; quieto y agachado a oscuras, casi nada.
+- **Nota lo que está fuera de lugar**: la mancha de tu linterna en una pared frente a ella (aunque tú estés detrás de la esquina), una puerta que no está como la dejó, una cortina del pabellón que sigue meciéndose. Las cortinas te tapan, pero se mueven cuando pasas.
+- **Cuando te pierde, va a donde ibas**, no a donde estabas: sigue tu rumbo hasta la siguiente pared y, si corres, te sigue por el ruido.
+- **Busca con método**: primero el punto donde te perdió, luego los escondites cercanos en orden (los que quedan hacia donde ibas, los que ya usaste y el tipo de escondite que prefieres), con una o dos esquinas para mirar.
+- **Aprende tus mañas**: cada vez que te escondes cerca de ella, o que casi te encuentra, ese escondite y ese tipo de escondite pasan al frente de su lista. No lo olvida aunque te atrape y vuelvas al punto de control.
+- **A veces finge que se va**: se aleja tarareando como si siguiera la ronda, se para en seco donde no la ves, espera en silencio mirando hacia donde te perdió y vuelve a mirar una vez más. Por eso: si deja de tararear cerca, no salgas.
+
+El Director sigue ahí, pero empuja menos: deja que la ronda sea una ronda al principio (le sugiere tu zona cada minuto o minuto y medio) y aprieta cuando llevas el fusible.
+
+## Un hospital más apretado
+
+Las salas eran cajas grandes y vacías. Ahora el pasillo norte termina en barricadas de evacuación (camas de canto, colchones y sillas, con cinta de NO PASAR) a los dos lados de las puertas que se usan; la recepción, el pabellón y la sala de estar tienen columnas que parten la vista y dan dónde cubrirse; el pabellón tiene su eje (columna, estación de enfermería, columna); la lencería, estanterías en medio que hacen pasillos; la sala de estar, una mesa con un juego de cartas a medias. El vidrio roto quedó en el pasillo norte antes de la sala de estar: el camino corto hasta allá es el ruidoso.
+
 ## Examinar
 
 Al examinar algo, la mirada se queda en eso mientras lees (más tiempo cuanto más larga la frase): la vista se acerca, el campo se estrecha, los bordes se suavizan y el resto del HUD se apaga. Si caminas o miras para otro lado con decisión, la suelta. Lo mismo pasa la primera vez que la ves, y cuando ella habla cerca sin que la veas la cabeza se te va un poco hacia su voz. Casi todo tiene una segunda frase, local y con humor negro (pereirano: el tinto, la hora Gaviria, El Diario del Otún, el jabón Rey, Sábados Felices…), y varias le hablan a quien juega: le dicen la hora real de su ciudad, la fecha de hoy, su nombre (si lo escribió) en el dibujo de Mariana, la batería que le queda al celular (donde el navegador la da), le piden cerrar los ojos tres segundos —y algo susurra detrás—; al pausar, al volver de un agarrón, a altas horas o si deja el juego quieto, el personaje también lo nota. La primera vez que pasan ciertas cosas el personaje lo comenta («¡Corra, mijo, corra!»). Los cuadros cambian a tus espaldas: el fundador pierde el esparadrapo y no tiene ojos, el paisaje cafetero anochece con un recolector sin cara en cada surco, a las frutas del bodegón les salen ojos, la lámina volteada aparece de frente y en la promoción de 1974 aparece una hermana con la cabeza caída sobre el hombro.
@@ -116,7 +136,7 @@ Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería 
 
 | Archivo | Qué hace |
 |---|---|
-| `src/content.ts` | Mapa del hospital (ASCII), notas, letreros, áreas, rutas de patrulla |
+| `src/content.ts` | Mapa del hospital (ASCII, con columnas `I`, mesas `m` y barricadas `x`), notas (la hoja de ronda), letreros, áreas |
 | `src/level.ts` | Geometría, colisiones, línea de visión, oclusión del sonido, A*. Cada parte del edificio tiene su acabado, y el desgaste va en espacio de mundo (shader): manchas que nunca se repiten, mugre en zócalos y esquinas, chorreones, y las goteras (`LEAKS` en `content.ts`) que manchan techo, pared y piso en el mismo sitio |
 | `src/sigil.ts` | El sigilo bordado en la cofia (donde iba la cruz) y en el pecho: calcomanías recortadas de la propia malla de la ropa, con sus pesos de piel |
 | `src/props.ts` | Muebles, escondites (casilleros con rejillas reales y el hueco bajo las camas), lámparas, luces de emergencia, tablero, fusible, ambientación (ventanas, cortinas con física de resortes, charcos, goteras, escombros) |
@@ -125,7 +145,7 @@ Mono, 44,1 kHz, MP3 a 96 kbps es suficiente. Los efectos vienen de la librería 
 | `src/examine.ts` | Sistema de examinar: frases por etapas, cosas que cambian cuando no las miras |
 | `src/storm.ts` | Relámpagos, trueno, lluvia |
 | `src/merge.ts` | Une la utilería estática en pocas mallas (menos llamadas de dibujo) |
-| `src/nurse.ts` | Enfermera (GLB o provisional), IA de dos capas y Director. El GLB incrustado se decodifica a mano y sus texturas desde sus bytes: la página publicada no deja usar `fetch` con URLs `data:`/`blob:` |
+| `src/nurse.ts` | Enfermera (GLB o provisional), su ronda, su memoria (puertas, escondites, tus mañas), la búsqueda con plan, la falsa salida y el Director. El GLB incrustado se decodifica a mano y sus texturas desde sus bytes: la página publicada no deja usar `fetch` con URLs `data:`/`blob:` |
 | `src/player.ts` | Movimiento, linterna con manivela, botellas, escondites (casillero y bajo la cama), respiración |
 | `src/audio.ts` | Sonido sintetizado más capa grabada: tarareo, portasueros, música adaptativa, su voz espectral, susurros, tormenta |
 | `src/post.ts` | Render a baja resolución, bloom, haz de la linterna en el aire (volumétrico), tramado, grano (medido: ~2/255 en medios tonos, <1 en negros; un píxel, 24 fps, después del tramado), viñeta, rejilla, sábana, polvo en el haz |

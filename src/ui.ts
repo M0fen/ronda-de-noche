@@ -375,6 +375,11 @@ export class UI {
       const X = ox + c.cx * cs, Z = oz + c.cz * cs, ch = MAP[c.cz][c.cx];
       g.strokeStyle = ink(0.6); g.lineWidth = 1; g.fillStyle = ink(0.08);
       if (ch === 'B') { g.fillRect(X + cs * 0.15, Z + cs * 0.25, cs * 0.7, cs * 0.5); g.strokeRect(X + cs * 0.15, Z + cs * 0.25, cs * 0.7, cs * 0.5); }
+      else if (ch === 'I') { g.fillStyle = ink(0.75); g.fillRect(X + cs * 0.29, Z + cs * 0.29, cs * 0.42, cs * 0.42); } // a column: solid, like the walls
+      else if (ch === 'x') { // a barricade: a crossed-out box, as on any evacuation plan
+        g.strokeStyle = 'rgba(179, 38, 30, 0.75)'; g.lineWidth = 1.5; g.strokeRect(X + cs * 0.1, Z + cs * 0.1, cs * 0.8, cs * 0.8);
+        g.beginPath(); g.moveTo(X + cs * 0.1, Z + cs * 0.1); g.lineTo(X + cs * 0.9, Z + cs * 0.9); g.moveTo(X + cs * 0.9, Z + cs * 0.1); g.lineTo(X + cs * 0.1, Z + cs * 0.9); g.stroke();
+      }
       else if (ch !== 'L') { g.fillRect(X + cs * 0.22, Z + cs * 0.22, cs * 0.56, cs * 0.56); g.strokeRect(X + cs * 0.22, Z + cs * 0.22, cs * 0.56, cs * 0.56); }
     }
     for (const lk of pr.lockers) {

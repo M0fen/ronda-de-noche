@@ -17,12 +17,13 @@ export interface Door {
   id: string; cx: number; cz: number; axis: 'x' | 'z';
   open: boolean; angle: number; barred: boolean; unbarSide?: { dx: number; dz: number };
   pivot: THREE.Object3D; jambs: Box[]; panel: Box; swing: number;
+  touchedAt?: number; // game time the player last opened or shut it (she notices a door that isn't how she left it)
 }
 
 export interface Cell { ch: string; cx: number; cz: number; kind: Kind; boxes: Box[]; door?: Door; glass?: boolean }
 
 const WALLS = '#X=P';
-const FURN = 'BLKCshotv';
+const FURN = 'BLKCshotvImx';
 
 // Collects quads into one BufferGeometry per material.
 class Geo {
@@ -52,10 +53,19 @@ class Geo {
   }
 }
 
+// Do segments AB and CD cross?
+function cross(ax: number, az: number, bx: number, bz: number, cx: number, cz: number, dx: number, dz: number) {
+  const o = (px: number, pz: number, qx: number, qz: number, rx: number, rz: number) => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
+  const d1 = o(cx, cz, dx, dz, ax, az), d2 = o(cx, cz, dx, dz, bx, bz), d3 = o(ax, az, bx, bz, cx, cz), d4 = o(ax, az, bx, bz, dx, dz);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
 export class Level {
   w = MAP[0].length; h = MAP.length;
   cells: Cell[] = [];
   doors: Door[] = [];
+  // hanging cloth (the ward's privacy curtains): you walk through it, nobody sees through it
+  screens: { ax: number; az: number; bx: number; bz: number }[] = [];
   start = { x: 0, z: 0 };
   group = new THREE.Group();
 
@@ -98,6 +108,7 @@ export class Level {
     const R = rng(77);
     const walls = Object.fromEntries(STYLES.map(st => [st, [new Geo(), new Geo()]])) as Record<Style, Geo[]>;
     const floors = Object.fromEntries(STYLES.map(st => [st, [new Geo(), new Geo()]])) as Record<Style, Geo[]>;
+    const cols = Object.fromEntries(STYLES.map(st => [st, new Geo()])) as Record<Style, Geo>;
     const ceil = new Geo();
     const exitG = new Geo();
     const lockG = new Geo();
@@ -110,6 +121,13 @@ export class Level {
       floors[st][R() < 0.5 ? 0 : 1].quad([[x0, 0, z1], [x1, 0, z1], [x1, 0, z0], [x0, 0, z0]], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
       ceil.quad([[x0, H, z0], [x1, H, z0], [x1, H, z1], [x0, H, z1]], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]); // door cells too: no black holes overhead
       if (c.kind === 'door') { this.buildDoor(c, (cx, cz) => walls[this.styleAt(cx, cz)][0], tex); continue; }
+      if (c.ch === 'I') { // a column in the middle of a big room: 0.84 m square, finished like the walls around it
+        const g = cols[st], h = 0.42, mx = x0 + 1, mz = z0 + 1;
+        g.wall(mx - h, mz + h, mx + h, mz + h, 0, H, [0, 0, 1], 0, 0.42);
+        g.wall(mx + h, mz - h, mx - h, mz - h, 0, H, [0, 0, -1], 0.3, 0.72);
+        g.wall(mx + h, mz + h, mx + h, mz - h, 0, H, [1, 0, 0], 0.55, 0.97);
+        g.wall(mx - h, mz - h, mx - h, mz + h, 0, H, [-1, 0, 0], 0.12, 0.54);
+      }
       for (const [dx, dz] of dirs) {
         const n = this.cell(c.cx + dx, c.cz + dz);
         if (!n || n.kind !== 'wall') continue;
@@ -129,6 +147,7 @@ export class Level {
       return mesh;
     };
     const gu = this.grimeUniforms();
+    for (const st of STYLES) if (cols[st].idx.length) add(cols[st], grime(lam(tex.walls[st][0], 2.2), 0, gu)).castShadow = true;
     for (const st of STYLES) for (let i = 0; i < 2; i++) {
       if (walls[st][i].idx.length) add(walls[st][i], grime(lam(tex.walls[st][i], 2.2), 0, gu));
       if (floors[st][i].idx.length) add(floors[st][i], grime(lam(tex.floors[st][i], 1.4), 1, gu));
@@ -359,8 +378,8 @@ export class Level {
     return true;
   }
 
-  // True if sight is blocked between two points.
-  blocked(ax: number, az: number, bx: number, bz: number) {
+  // True if sight is blocked between two points (walls, shut doors, tall furniture and, unless told otherwise, curtains).
+  blocked(ax: number, az: number, bx: number, bz: number, cloth = true) {
     for (const [cx, cz] of this.walk(ax, az, bx, bz)) {
       const c = this.cell(cx, cz);
       if (!c || c.kind === 'wall') return true;
@@ -368,6 +387,7 @@ export class Level {
         for (const b of this.boxesAt(cx, cz)) if (b.tall && this.segBox(ax, az, bx, bz, b)) return true;
       }
     }
+    if (cloth) for (const q of this.screens) if (cross(ax, az, bx, bz, q.ax, q.az, q.bx, q.bz)) return true;
     return false;
   }
 

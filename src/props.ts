@@ -24,7 +24,7 @@ function box(w: number, h: number, d: number, m: THREE.Material, x = 0, y = 0, z
 export class Props {
   group = new THREE.Group();
   lockers: Locker[] = [];
-  curtains: { mesh: THREE.Mesh; base: Float32Array; cx: number; cz: number; ux: number; uz: number; nx: number; nz: number; len: number; cols: number; o: Float32Array; v: Float32Array; ph: number; awake: number }[] = [];
+  curtains: { mesh: THREE.Mesh; base: Float32Array; cx: number; cz: number; ux: number; uz: number; nx: number; nz: number; len: number; cols: number; o: Float32Array; v: Float32Array; ph: number; awake: number; touched: number }[] = [];
   private agentPrev: { x: number; z: number }[] = [];
   lamps: Lamp[] = [];
   bottles: Bottle[] = [];
@@ -195,7 +195,7 @@ export class Props {
     // MAIN CORRIDOR: the sign and the bucket by the leak, tanks and a stand further up, boxes by the wall
     wetSign(30.42, 19.2, 1.2); bucket(30.55, 15.2); boxes(16, 15, 'E', 2); tanks(15, 16, 'W', 2); ivStand(30.45, 26.8, 0.3); bin(16, 14, 'E', 0.3);
     // NORTH CORRIDOR
-    boxes(5, 3, 'N', 3); ivStand(24.4, 6.5, 1.1); boxes(23, 3, 'N', 2, 0.3); bin(27, 4, 'S'); tanks(12, 3, 'N', 2, 0.4); extinguisher(17, 3, 'N');
+    boxes(8, 3, 'N', 3); ivStand(24.4, 6.5, 1.1); boxes(23, 3, 'N', 2, 0.3); bin(26, 4, 'S'); tanks(12, 3, 'N', 2, 0.4); extinguisher(17, 3, 'N');
     // WARD B: drip stands at the heads of the beds, boxes of linen, a second chair waiting
     ivStand(6.6, 14.6, 0.4); ivStand(6.6, 22.6, 2.2); ivStand(25.4, 14.6, 2.9); ivStand(6.6, 26.6, 1.3);
     boxes(12, 6, 'N', 2); wheelchair(17.2, 28.6, 0.15); bin(9, 14, 'S', 0.4);
@@ -229,6 +229,7 @@ export class Props {
           const r = Math.hypot(along, nd * 0.8);
           if (r > 0.75) continue;
           const w = 1 - r / 0.75;
+          if (k === 0 && w > 0.25 && Math.hypot(vel[0].x, vel[0].z) > 0.25) C.touched = time; // you brushed it: it swings for a while
           // out of the body's way...
           const want = -Math.sign(nd || 1) * (0.42 - Math.abs(nd)) ;
           if (Math.abs(nd) < 0.42 && Math.abs(o[i] - want) > 0.02 && Math.sign(want) * (want - o[i]) > 0) f += (want - o[i]) * 160 * w;
@@ -253,6 +254,15 @@ export class Props {
   }
 
   // Back wall of a wall-hugging piece -> rotation so local +Z faces the room.
+  private tape?: THREE.MeshLambertMaterial;
+  private makeTape() {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 16; const g = cv.getContext('2d')!;
+    for (let i = 0; i < 16; i++) { g.fillStyle = i % 2 ? '#15130e' : '#c9a227'; g.beginPath(); g.moveTo(i * 16, 16); g.lineTo(i * 16 + 8, 0); g.lineTo(i * 16 + 24, 0); g.lineTo(i * 16 + 16, 16); g.fill(); }
+    g.fillStyle = '#efe6cf'; g.fillRect(96, 2, 64, 12); g.fillStyle = '#15130e'; g.font = 'bold 10px Arial, sans-serif'; g.textAlign = 'center'; g.fillText('NO PASAR', 128, 12);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    return lam({ map: t, side: THREE.DoubleSide });
+  }
+
   private backRot(cx: number, cz: number) {
     const L = this.level;
     if (L.isWall(cx - 1, cz)) return Math.PI / 2;
@@ -408,6 +418,48 @@ export class Props {
         }
         g.add(box(0.3, 0.2, 0.3, m.paperW, 0, 0.33, 0.1));
         b = [-0.31, -0.46, 0.31, 0.46];
+        break;
+      }
+      case 'I': { // the column itself is built with the walls (level.ts); here only its footprint
+        b = [-0.42, -0.42, 0.42, 0.42]; tall = true;
+        break;
+      }
+      case 'm': { // the dayroom's tables: a card game left half played, chairs pushed back, one on the floor
+        rot = FACING[key] ?? (R() - 0.5) * 0.5;
+        g.add(box(1.2, 0.04, 0.8, m.wood, 0, 0.72, 0));
+        for (const x of [-0.54, 0.54]) for (const z of [-0.34, 0.34]) g.add(box(0.05, 0.72, 0.05, m.frame, x, 0, z));
+        for (let k = 0; k < 9; k++) { const cd = box(0.06, 0.004, 0.09, m.paperW, (R() - 0.5) * 0.7, 0.762, (R() - 0.5) * 0.4); cd.rotation.y = R() * 3; g.add(cd); }
+        const chair = (x: number, z: number, yaw: number, down = false) => {
+          const c = new THREE.Group();
+          c.add(box(0.42, 0.04, 0.4, m.chair, 0, 0.44, 0), box(0.42, 0.42, 0.03, m.chair, 0, 0.48, -0.19));
+          for (const [lx, lz] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) c.add(box(0.025, 0.44, 0.025, m.frame, lx, 0, lz));
+          c.position.set(x, down ? 0.2 : 0, z); c.rotation.y = yaw; if (down) c.rotation.z = Math.PI / 2;
+          g.add(c);
+        };
+        chair(-0.95, 0.05, Math.PI / 2 + (R() - 0.5) * 0.5); chair(0.9, -0.1, -Math.PI / 2 + (R() - 0.5) * 0.6);
+        chair(0.1, 0.72, Math.PI + 0.3, true); chair(-0.15, -0.75, (R() - 0.5) * 0.4);
+        b = [-0.78, -0.58, 0.78, 0.58];
+        break;
+      }
+      case 'x': { // evacuation barricade: beds on end, mattresses and chairs piled across the corridor, taped off
+        rot = L.isWall(cx, cz - 1) || L.isWall(cx, cz + 1) || L.cell(cx, cz - 1)?.ch === 'x' || L.cell(cx, cz + 1)?.ch === 'x' ? Math.PI / 2 : 0;
+        const side = (y: number, z: number, tilt: number) => { // a bed frame on its side
+          const f = new THREE.Group();
+          f.add(box(1.9, 0.05, 0.94, m.frame, 0, 0, 0), box(1.86, 0.16, 0.9, m.mattress, 0, 0.05, 0));
+          for (const x of [-0.9, 0.9]) f.add(box(0.04, 0.6, 0.04, m.frame, x, 0.2, 0.42));
+          f.rotation.x = Math.PI / 2 + tilt; f.position.set((R() - 0.5) * 0.15, y, z); f.rotation.y = (R() - 0.5) * 0.12; g.add(f);
+        };
+        side(0.47, -0.25, 0.08); side(0.5, 0.3, -0.12);
+        const mat = box(1.86, 0.16, 0.9, m.mattress, 0, 0, 0); mat.rotation.set(0.25, 0.1, 0.55); mat.position.set(0.1, 1.05, 0.05); g.add(mat);
+        for (let k = 0; k < 3; k++) { // chairs thrown on top
+          const c = new THREE.Group();
+          c.add(box(0.42, 0.04, 0.4, m.chair, 0, 0.44, 0), box(0.42, 0.42, 0.03, m.chair, 0, 0.48, -0.19));
+          for (const [lx, lz] of [[-0.18, -0.17], [0.18, -0.17], [-0.18, 0.17], [0.18, 0.17]]) c.add(box(0.025, 0.44, 0.025, m.frame, lx, 0, lz));
+          c.position.set(-0.6 + k * 0.6 + (R() - 0.5) * 0.2, 1.25 + R() * 0.2, (R() - 0.5) * 0.4); c.rotation.set((R() - 0.5) * 2, R() * 6, (R() - 0.5) * 2.4); g.add(c);
+        }
+        const tapeM = this.tape ??= this.makeTape();
+        for (const [y, t] of [[0.92, 0.04], [1.38, -0.06]]) { const tp = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.09), tapeM); tp.position.set(0, y, 0.62); tp.rotation.z = t; g.add(tp); const tb = tp.clone(); tb.position.z = -0.62; tb.rotation.y = Math.PI; g.add(tb); }
+        b = [-1, -1, 1, 1]; tall = true;
         break;
       }
       case 'v': {
@@ -633,7 +685,8 @@ export class Props {
       c.rotation.y = Math.atan2(-(z1 - z0), x1 - x0);
       c.castShadow = true; c.receiveShadow = true;
       c.userData.dynamic = true; this.group.add(c);
-      this.curtains.push({ mesh: c, base: Float32Array.from(p.array as Float32Array), cx: c.position.x, cz: c.position.z, ux: (x1 - x0) / len, uz: (z1 - z0) / len, nx: Math.sin(c.rotation.y), nz: Math.cos(c.rotation.y), len, cols, o: new Float32Array(cols + 1), v: new Float32Array(cols + 1), ph: this.curtains.length * 1.7, awake: 1 });
+      this.curtains.push({ mesh: c, base: Float32Array.from(p.array as Float32Array), cx: c.position.x, cz: c.position.z, ux: (x1 - x0) / len, uz: (z1 - z0) / len, nx: Math.sin(c.rotation.y), nz: Math.cos(c.rotation.y), len, cols, o: new Float32Array(cols + 1), v: new Float32Array(cols + 1), ph: this.curtains.length * 1.7, awake: 1, touched: -99 });
+      this.level.screens.push({ ax: x0, az: z0, bx: x1, bz: z1 });
       const r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len + 0.2, 5), rail);
       r.position.set(c.position.x, 2.58, c.position.z); r.rotation.z = Math.PI / 2; r.rotation.y = c.rotation.y;
       add(r);

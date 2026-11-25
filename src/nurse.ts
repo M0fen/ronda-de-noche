@@ -4,7 +4,7 @@ import { applySigil } from './sigil';
 import { GLTFLoader, type GLTFParser } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Game } from './game';
 import type { Locker, Lamp } from './props';
-import { PATROL } from './content';
+import { PATROL, AREAS } from './content';
 import { rng } from './textures';
 
 // ---------------------------------------------------------------------------
@@ -442,7 +442,9 @@ export async function buildRig(tex: PTex & { glint: THREE.Texture }, url = NURSE
 }
 
 // ---------------------------------------------------------------------------
-type State = 'idle' | 'patrol' | 'suspicious' | 'investigate' | 'search' | 'chase' | 'inspect' | 'lightoff' | 'leave' | 'script' | 'grab' | 'frozen';
+type State = 'idle' | 'patrol' | 'suspicious' | 'investigate' | 'search' | 'chase' | 'inspect' | 'lightoff' | 'leave' | 'script' | 'grab' | 'frozen' | 'ambush';
+// A stop on her round: where she stands, what she looks at, how long, and what she does there.
+interface Stop { x: number; z: number; wait: number; act: string; tag: string; look?: { x: number; y: number; z: number }; bed?: Locker }
 export interface Noise { x: number; z: number; r: number; loud: number; kind: string; ox?: number; oz?: number }
 interface ScriptStep { to?: { x: number; z: number }; speed?: number; wait?: number; look?: boolean; hum?: boolean; glint?: number; call?: () => void }
 
@@ -490,7 +492,7 @@ export class Nurse {
   locker: Locker | null = null; sawEnter = false; insp = 'approach'; inspT = 0; notHeld = 0; tutorial = false; inspectDone: (() => void) | null = null;
   lures = 0; lockerHides = 0; hint = false; lamp: Lamp | null = null; looked = false;
   searchCenter = new THREE.Vector3(); searchT = 0;
-  stepAcc = 0; squeakT = 0; twitchT = 12; stepT = 0; stepClock = 0; doorWait = 0; stuckT = 0; lastD = 0;
+  stepAcc = 0; squeakT = 0; twitchT = 12; stepT = 0; stepClock = 0; doorWait = 0; stuckT = 0; stuckN = 0; lastD = 0;
   blinkT = 3; blinking = 0; glintBoost = 0; glintLevel = 0; peekDip = 0; private gw = new THREE.Vector3(); private gv = new THREE.Vector3();
   anim = ''; oneShot = ''; script: { steps: ScriptStep[]; i: number; t: number; done?: () => void } | null = null;
   humWant = false; wasHumming = false; voiceCD = 8;
@@ -500,7 +502,16 @@ export class Nurse {
   layer: Record<string, { w: number; want: number }> = { scratch: { w: 0, want: 0 }, tilt: { w: 0, want: 0 }, bend: { w: 0, want: 0 } };
   lookW = 0; lookWant = 0; lookAt = new THREE.Vector3(); layerT = 0; debugPose: Pose | null = null;
   // a pause on her round: she stops, and stares, scratches or tips her head
-  pause: { t: number; act: string } | null = null; stopT = 20; private handR: THREE.Object3D | null | undefined;
+  pause: { t: number; act: string; dur: number; checked?: boolean } | null = null; stopT = 20; private handR: THREE.Object3D | null | undefined;
+  // her round: the same stops in the same order, and the next time the other way round (the Hoja de ronda)
+  round: Stop[] = []; ri = -1; rdir = 1; stop: Stop | null = null; rounds = 0; offRound = true; private roundPhase = -1;
+  // what she keeps in mind: where you were heading, the doors as she left them, where people like to hide
+  seenVel = { x: 0, z: 0 }; private lastEye = { x: 0, z: 0, ok: false };
+  doorMem = new Map<string, boolean>(); private doorScan = 0; spotT = 0;
+  heat = new Map<string, number>(); kindHeat: Record<string, number> = { locker: 0, bed: 0 }; checkedAt = new Map<string, number>();
+  spots: { x: number; z: number; l?: Locker }[] = []; cur: { x: number; z: number; l?: Locker } | null = null;
+  amb: { phase: 'away' | 'wait' | 'back'; t: number; c: THREE.Vector3; wait: number } | null = null; lastAmbush = -99;
+  clue: { x: number; z: number; kind: string } | null = null;
   private le = new THREE.Euler(); private lq = new THREE.Quaternion(); private ld = new THREE.Quaternion(); private lh = new THREE.Vector3();
   R = rng(99);
 
@@ -560,9 +571,15 @@ export class Nurse {
       v.b.quaternion.multiply(this.ld);
     }
   }
-  private startPause(t: number, act: string) {
-    this.pause = { t, act };
+  private startPause(t: number, act: string, look?: { x: number; y: number; z: number }) {
+    this.pause = { t, act, dur: t };
     const P = this.game.player;
+    if (look && (act === 'check' || act === 'write' || act === 'look')) {
+      // a stop on her round: she looks at what she came to look at (the pillow, the ledger, down the corridor)
+      this.lookAt.set(look.x, look.y, look.z); this.lookWant = 1;
+      if (act === 'write') this.layer.tilt.want = 0.6;
+      return;
+    }
     if (act === 'stare') {
       // she looks right at where you are, if there's a line to you; otherwise off to one side, at nothing
       if (this.dist < 16 && !this.game.level.blocked(this.pos.x, this.pos.z, P.eye.x, P.eye.z)) this.lookAt.copy(P.eye);
@@ -611,16 +628,17 @@ export class Nurse {
   reset(state: State) {
     this.state = state; this.t = 0; this.awareness = 0; this.locker = null; this.sawEnter = false; this.lamp = null;
     this.hint = false; this.goal = null; this.path = []; this.oneShot = ''; this.script = null; this.glintBoost = 0; this.lostT = 0;
+    this.amb = null; this.offRound = true; this.stop = null; this.pause = null;
     this.play('idle', 0);
   }
 
   // -- public commands ----------------------------------------------------------
-  hintTo(p: { x: number; z: number }) { this.hint = true; this.setGoal(p); }
+  hintTo(p: { x: number; z: number }) { this.hint = true; this.offRound = true; this.stop = null; this.setGoal(p); }
   sendAway() {
     const P = this.game.player, L = this.game.level;
     let best = PATROL[0], bd = -1;
     for (const p of PATROL) { const c = L.center(p[0], p[1]); const d = Math.hypot(c.x - P.pos.x, c.z - P.pos.z); if (d > bd) { bd = d; best = p; } }
-    this.to('leave'); this.setGoal(L.center(best[0], best[1]));
+    this.to('leave'); this.offRound = true; this.stop = null; this.setGoal(L.center(best[0], best[1]));
   }
   switchOff(l: Lamp) { this.lamp = l; this.to('lightoff'); this.setGoal(l.stand); }
   runScript(steps: ScriptStep[], done?: () => void) { this.to('script'); this.script = { steps, i: 0, t: 0, done }; this.path = []; this.goal = null; }
@@ -632,22 +650,28 @@ export class Nurse {
   onPlayerEnteredLocker(l: Locker) {
     const P = this.game.player;
     const seen = this.state !== 'script' && this.visibleFrom(this.pos.x, this.pos.z, Math.sin(this.yaw), Math.cos(this.yaw), P.pos.x, P.pos.z) && this.dist < 15;
-    if (['investigate', 'search', 'chase', 'suspicious'].includes(this.state) && this.dist < 14) this.lockerHides++;
+    if (['investigate', 'search', 'chase', 'suspicious', 'ambush'].includes(this.state) && this.dist < 14) { this.lockerHides++; this.kindHeat[l.kind] += 1; }
     if (seen && (this.state === 'chase' || this.awareness > 0.5)) this.inspect(l, { saw: true });
   }
 
-  private to(s: State) { this.state = s; this.t = 0; this.oneShot = ''; this.looked = false; if (s !== 'patrol') this.hint = false; this.endPause(); this.layer.bend.want = 0; }
+  private to(s: State) {
+    if (s !== 'patrol' && s !== 'leave') { this.offRound = true; this.stop = null; }
+    if (s !== 'ambush') this.amb = null;
+    this.state = s; this.t = 0; this.oneShot = ''; this.looked = false; if (s !== 'patrol') this.hint = false; this.endPause(); this.layer.bend.want = 0;
+  }
   private setGoal(p: { x: number; z: number }) {
     this.goal = { x: p.x, z: p.z };
     const path = this.game.level.path(this.pos.x, this.pos.z, p.x, p.z);
     this.path = path && path.length ? path : [{ x: p.x, z: p.z }];
     this.pi = 0; this.stuckT = 0; this.lastD = 1e9;
+    if (!this.stuckFor || Math.hypot(p.x - this.stuckFor.x, p.z - this.stuckFor.z) > 0.05) { this.stuckFor = { x: p.x, z: p.z }; this.stuckN = 0; } // a new goal, not the same one again
   }
+  private stuckFor: { x: number; z: number } | null = null;
   private arrived() { return !this.path.length || this.pi >= this.path.length; }
 
   // -- perception ---------------------------------------------------------------
   private sense(dt: number, noises: Noise[]) {
-    const P = this.game.player, L = this.game.level;
+    const P = this.game.player, L = this.game.level, G = this.game;
     const eye = P.eye;
     const dx = eye.x - this.pos.x, dz = eye.z - this.pos.z, d = Math.max(0.01, Math.hypot(dx, dz));
     this.dist = d;
@@ -655,12 +679,15 @@ export class Nurse {
     const cosA = (dx * fx + dz * fz) / d;
     const los = !L.blocked(this.pos.x, this.pos.z, eye.x, eye.z);
     this.canSee = false; this.litByTorch = false;
-    if (!P.inLocker && !P.ghost && los && (cosA > 0.5 || d < 1.6)) {
+    // sight: full within ~55° of where she faces, fading out toward ~80° (the corner of her eye catches a lit or
+    // running shape, not a still one in the dark); standing still and waiting, she watches harder
+    const fov = d < 1.6 ? 1 : THREE.MathUtils.smoothstep(cosA, 0.15, 0.55);
+    if (!P.inLocker && !P.ghost && los && fov > 0) {
       const lit = P.visibility();
-      const range = 3.0 + 15 * lit;
+      const range = (3.0 + 15 * lit) * (0.55 + 0.45 * fov);
       if (d < range) {
         this.canSee = true;
-        this.awareness += (1 - d / range) * (0.9 + 2.6 * lit) * this.phaseMul * dt * 1.5;
+        this.awareness += (1 - d / range) * (0.9 + 2.6 * lit) * this.phaseMul * fov * dt * 1.5 * (this.state === 'ambush' ? 1.4 : 1);
       }
     }
     if (P.torch.on && !P.inLocker && !P.ghost && los && d < P.torch.range) {
@@ -672,12 +699,51 @@ export class Nurse {
     if (!this.canSee) this.awareness = Math.max(0, this.awareness - dt * 0.22);
     else this.lastSeen.set(eye.x, 0, eye.z);
     this.awareness = Math.min(this.awareness, 1.5);
+    // where you were going, while she could see you (for when she can't)
+    if (this.canSee && dt > 0) {
+      if (this.lastEye.ok) { const k = Math.min(1, dt * 4); this.seenVel.x += ((eye.x - this.lastEye.x) / dt - this.seenVel.x) * k; this.seenVel.z += ((eye.z - this.lastEye.z) / dt - this.seenVel.z) * k; }
+      this.lastEye.x = eye.x; this.lastEye.z = eye.z; this.lastEye.ok = true;
+    } else this.lastEye.ok = false;
     this.heard = null; this.heardS = 0;
     for (const n of noises) {
       const occ = L.occlusion(n.x, n.z, this.pos.x, this.pos.z);
       const r = n.r / (1 + occ * 1.1);
       const nd = Math.hypot(n.x - this.pos.x, n.z - this.pos.z);
       if (nd < r) { const s = n.loud * (1 - nd / r); if (s > this.heardS) { this.heardS = s; this.heard = n; } }
+    }
+    // things out of place: light moving on a wall, a door that isn't how she left it, a curtain still swinging
+    this.clue = null;
+    const busy = this.state === 'chase' || this.state === 'grab' || this.state === 'inspect' || this.state === 'script' || this.state === 'frozen';
+    if (busy || this.canSee) { this.spotT = 0; return; }
+    const ahead = (x: number, z: number, max: number, minCos: number) => { const qx = x - this.pos.x, qz = z - this.pos.z, qd = Math.hypot(qx, qz); return qd < max && qd > 0.5 && (qx * fx + qz * fz) / qd > minCos ? qd : 0; };
+    if (P.torch.on && !P.inLocker && !P.ghost) {
+      // the beam's spot: pulled back a little from the wall it lands on, so the wall itself doesn't hide it
+      const k = Math.max(0.3, P.aimD - 0.35), sx = P.eye.x + P.fwd.x * k, sz = P.eye.z + P.fwd.z * k;
+      const qd = ahead(sx, sz, 13, 0.2);
+      if (qd && !L.blocked(this.pos.x, this.pos.z, sx, sz)) this.spotT += dt * (0.55 + 0.35 * P.torch.level) * (1 - qd / 13) * 2.2;
+      else this.spotT = Math.max(0, this.spotT - dt);
+      if (this.spotT > 0.7) { this.spotT = 0; this.clue = { x: sx * 0.6 + P.eye.x * 0.4, z: sz * 0.6 + P.eye.z * 0.4, kind: 'light' }; return; }
+    } else this.spotT = Math.max(0, this.spotT - dt);
+    if ((this.doorScan -= dt) <= 0) {
+      this.doorScan = 0.25;
+      for (const dr of L.doors) {
+        if (dr.barred) continue;
+        const c = L.center(dr.cx, dr.cz);
+        if (!ahead(c.x, c.z, 11, 0.3)) continue;
+        const sg = (dr.axis === 'x' ? Math.sign(this.pos.z - c.z) : Math.sign(this.pos.x - c.x)) || 1;
+        const px = c.x + (dr.axis === 'z' ? sg : 0), pz = c.z + (dr.axis === 'x' ? sg : 0);
+        if (L.blocked(this.pos.x, this.pos.z, px, pz)) continue;
+        const was = this.doorMem.get(dr.id);
+        this.doorMem.set(dr.id, dr.open);
+        if (was !== undefined && was !== dr.open && dr.touchedAt !== undefined && G.time - dr.touchedAt < 150 && !this.clue)
+          this.clue = { x: c.x - (dr.axis === 'z' ? sg * 2.4 : 0), z: c.z - (dr.axis === 'x' ? sg * 2.4 : 0), kind: 'door' }; // the far side
+      }
+      if (this.clue) return;
+    }
+    for (const C of G.props.curtains) {
+      if (G.time - C.touched > 1.6 || !ahead(C.cx, C.cz, 11, 0.3) || L.blocked(this.pos.x, this.pos.z, C.cx, C.cz, false)) continue;
+      C.touched = -99; this.clue = { x: C.cx, z: C.cz, kind: 'curtain' };
+      break;
     }
   }
 
@@ -698,18 +764,12 @@ export class Nurse {
     return { x: n.x, z: n.z };
   }
 
-  private nearestLocker(x: number, z: number, maxD: number) {
-    let best: Locker | null = null, bd = maxD;
-    for (const l of this.game.props.lockers) { const d = Math.hypot(l.front.x - x, l.front.z - z); if (d < bd) { bd = d; best = l; } }
-    return best;
-  }
-
   // -- brain -----------------------------------------------------------------------
   private think(dt: number) {
     const P = this.game.player;
     const s = this.state;
     const phase = this.game.director.phase;
-    const calm = s === 'idle' || s === 'patrol' || s === 'search' || s === 'lightoff' || s === 'leave';
+    const calm = s === 'idle' || s === 'patrol' || s === 'search' || s === 'lightoff' || s === 'leave' || s === 'ambush';
     if (s === 'inspect' && this.awareness >= 1 && this.canSee && !P.inLocker) { this.locker = null; this.toChase(); return; }
     if (calm || s === 'investigate') {
       if (this.awareness >= 1 && this.canSee) { this.toChase(); return; }
@@ -720,26 +780,44 @@ export class Nurse {
         else { this.suspicious(tgt.x, tgt.z, this.heard.kind); }
         return;
       }
+      if (this.clue && s !== 'investigate') { this.suspicious(this.clue.x, this.clue.z, this.clue.kind); return; }
     }
     switch (s) {
       case 'idle': if (this.t > 1.5) this.nextPatrol(); break;
       case 'patrol': case 'leave':
         if (this.pause) {
           this.pause.t -= dt;
+          const st = this.stop;
+          if (st?.look && s === 'patrol') this.faceTo(st.look.x, st.look.z, dt, 2.6);
+          // checking a bed: she looks at the pillow, not under it, unless something gives you away
+          if (st?.bed && s === 'patrol' && !this.pause.checked && this.pause.t < this.pause.dur * 0.5) {
+            this.pause.checked = true;
+            const inside = P.inLocker === st.bed;
+            const tell = inside && (!P.breath.held || P.torch.on || this.R() < 0.1 + 0.08 * phase + 0.04 * this.kindHeat.bed);
+            if (tell || (!inside && this.R() < 0.05 + 0.04 * phase + 0.03 * this.kindHeat.bed)) {
+              const b = st.bed; this.inspect(b); this.inspectDone = () => this.backToRound();
+              break;
+            }
+          }
           if (this.pause.t <= 0) { const end = this.arrived(); this.endPause(); if (end) this.nextPatrol(); }
           break;
         }
         if (this.arrived()) {
           if (this.hint && !this.looked) { this.looked = true; this.t = 0; }
           if (this.looked) { if (this.t > 2.6) { this.looked = false; this.hint = false; this.nextPatrol(); } }
-          else if (s === 'patrol' && !this.game.settings.reduced && this.R() < 0.55) {
-            const r = this.R(); this.startPause(2.6 + this.R() * 2.8, r < 0.45 ? 'stare' : r < 0.8 ? 'scratch' : 'tilt');
+          else if (s === 'patrol' && this.stop) {
+            const st = this.stop, w = st.wait * (phase ? 0.75 : 1) * (this.game.settings.reduced ? 0.8 : 1);
+            // a plain look down a corridor sometimes turns into a stare, or the scratch, or the tilt of the head
+            const r = this.R();
+            const act = st.act !== 'look' || this.game.settings.reduced || r > 0.35 ? st.act : r < 0.15 ? 'stare' : r < 0.27 ? 'scratch' : 'tilt';
+            this.startPause(act === 'stare' || act === 'scratch' || act === 'tilt' ? Math.max(w, 2.4) : w, act, st.look);
+            if (st.tag === 'bed' && st === this.firstBed()) this.say('v_cuento', 'Cama uno, dormido. Cama dos, dormido. Cama tres…', 0.8);
           } else this.nextPatrol();
           if (s === 'leave' && this.t > 1) this.to('patrol');
         } else if (s === 'patrol' && (this.stopT -= dt) <= 0) {
           // mid-walk she just stops, and stands there looking
-          this.stopT = 16 + this.R() * 22;
-          if (this.R() < 0.6) this.startPause(2.2 + this.R() * 2.4, 'stare');
+          this.stopT = 22 + this.R() * 24;
+          if (this.R() < 0.5) this.startPause(2.2 + this.R() * 2.2, 'stare');
         }
         break;
       case 'lightoff':
@@ -756,33 +834,34 @@ export class Nurse {
       case 'investigate':
         if (this.arrived()) {
           if (!this.looked) { this.looked = true; this.t = 0; }
-          if (this.t > 2.4) {
-            this.looked = false;
-            const lk = this.nearestLocker(this.target.x, this.target.z, 4.5);
-            const p = 0.22 + this.lockerHides * 0.18 + phase * 0.15 + (lk && Math.hypot(lk.front.x - this.target.x, lk.front.z - this.target.z) < 2.6 ? 0.3 : 0);
-            if (lk && this.R() < Math.min(0.9, p)) this.inspect(lk);
-            else this.toSearch(this.target);
-          }
+          if (this.t > 2.0) { this.looked = false; this.toSearch(this.target); }
         }
         break;
       case 'search':
         this.searchT -= dt;
         if (this.arrived()) {
-          if (this.searchT <= 0) { this.nextPatrol(); this.state = 'patrol'; break; }
-          if (this.t > 1.8) {
-            const lk = this.nearestLocker(this.searchCenter.x, this.searchCenter.z, 5);
-            if (lk && this.R() < 0.18 + this.lockerHides * 0.12 + phase * 0.1) { this.inspect(lk); break; }
-            const p = this.game.level.randomNear(this.searchCenter.x, this.searchCenter.z, 1.5, 6, this.R);
-            if (p) this.setGoal(p); this.t = 0;
+          if (!this.looked) { this.looked = true; this.t = 0; }
+          if (this.t > (this.cur?.l ? 0.25 : 1.5)) {
+            this.looked = false;
+            const c = this.cur;
+            if (c?.l) { this.checkedAt.set(c.l.id, this.game.time); this.inspect(c.l); this.inspectDone = () => this.continueSearch(); break; }
+            this.continueSearch();
           }
         }
         break;
+      case 'ambush': this.thinkAmbush(dt); break;
       case 'chase': {
         if (this.canSee) { this.lostT = 0; } else this.lostT += dt;
+        // out of sight but loud (running, a door, glass): she follows the sound
+        if (!this.canSee && this.heard && this.heardS > 0.3 && this.heard.kind !== 'bottle') { this.lastSeen.set(this.heard.x, 0, this.heard.z); this.lostT = Math.max(0, this.lostT - dt * 1.5); }
         this.repath -= dt;
-        if (this.repath <= 0) { this.repath = 0.3; this.setGoal(this.canSee ? { x: P.pos.x, z: P.pos.z } : this.lastSeen); }
+        if (this.repath <= 0) {
+          this.repath = 0.3;
+          // not where you were: where you were going
+          this.setGoal(this.canSee ? { x: P.pos.x, z: P.pos.z } : this.lostT < 0.45 ? this.lastSeen : this.predict());
+        }
         if (this.dist < 1.05 && !P.inLocker && !P.ghost) { this.to('grab'); this.once('grab'); this.game.onGrab(); break; }
-        if (this.lostT > (phase ? 4.5 : 3.2) || (this.arrived() && !this.canSee)) { T.ev('lost'); this.toSearch(this.lastSeen); }
+        if (this.lostT > (phase ? 4.5 : 3.2) || (this.arrived() && !this.canSee && this.lostT > 0.45)) { T.ev('lost'); this.toSearch(this.predict(), this.lastSeen); }
         break;
       }
       case 'inspect': this.thinkInspect(dt); break;
@@ -807,10 +886,10 @@ export class Nurse {
         if (P.breath.gasped || this.notHeld > 0.8) { this.insp = 'open'; this.inspT = 0; }
       }
       if (this.insp === 'open' && this.inspT > 0.9 && this.layer.bend.w > 0.8) {
-        if (inside) { this.to('grab'); this.layer.bend.want = 1; this.game.onGrab(); return; }
+        if (inside) { this.heat.set(l.id, (this.heat.get(l.id) ?? 0) + 2); this.to('grab'); this.layer.bend.want = 1; this.game.onGrab(); return; }
         this.insp = 'turn'; this.inspT = 0;
       } else if (this.insp === 'peek' && this.inspT > 3.6 + this.game.director.phase * 0.8) {
-        if (inside) { this.lockerHides++; T.ev('safe', l.id); this.game.bark('safe', 'Uf. Casi me hago en los calzones.', 1.6); }
+        if (inside) { this.lockerHides++; this.closeCall(l); T.ev('safe', l.id); this.game.bark('safe', 'Uf. Casi me hago en los calzones.', 1.6); }
         this.insp = 'turn'; this.inspT = 0;
       }
     } else if (this.insp === 'turn') {
@@ -822,6 +901,9 @@ export class Nurse {
       }
     }
   }
+
+  // She felt something in there: that spot, and that kind of spot, get looked at first next time.
+  private closeCall(l: Locker) { this.heat.set(l.id, (this.heat.get(l.id) ?? 0) + 1); this.kindHeat[l.kind] += 0.5; }
 
   private thinkInspect(dt: number) {
     const l = this.locker!, P = this.game.player;
@@ -854,13 +936,13 @@ export class Nurse {
         if (P.breath.gasped || this.notHeld > (this.tutorial ? 1.5 : 0.85)) { this.insp = 'open'; this.inspT = 0; this.once('open_locker'); return; }
       }
       if (this.inspT > dur) {
-        if (inside) { this.lockerHides++; T.ev('safe', l.id); this.game.bark('safe', 'Uf. Casi me hago en los calzones.', 1.6); }
+        if (inside) { this.lockerHides++; this.closeCall(l); T.ev('safe', l.id); this.game.bark('safe', 'Uf. Casi me hago en los calzones.', 1.6); }
         this.insp = 'turn'; this.inspT = 0;
       }
     } else if (this.insp === 'open') {
       if (this.inspT > 0.45) l.doorTarget = 1.2;
       if (this.inspT > 0.55) {
-        if (inside) { this.to('grab'); this.game.onGrab(); return; }
+        if (inside) { this.heat.set(l.id, (this.heat.get(l.id) ?? 0) + 2); this.to('grab'); this.game.onGrab(); return; }
         if (this.inspT > 1.3) { l.doorTarget = 0; this.toSearch(this.pos); }
       }
     } else if (this.insp === 'turn') {
@@ -890,19 +972,117 @@ export class Nurse {
     if (this.state !== 'chase') { this.game.onChase(); this.voiceCD = 0; this.say('v_aquiesta', 'Ahí estás.', 0.85); }
     this.to('chase'); this.repath = 0; this.lostT = 0; this.tutorial = false; this.inspectDone = null;
   }
-  private toSearch(c: { x: number; z: number }) {
+  // Where you were heading when she lost you: along your last seen run, stopped short of the first wall.
+  predict() {
+    const L = this.game.level, v = this.seenVel, sp = Math.hypot(v.x, v.z);
+    if (sp < 0.4) return { x: this.lastSeen.x, z: this.lastSeen.z };
+    const ux = v.x / sp, uz = v.z / sp, want = Math.min(7, 1.5 + sp * 1.4);
+    const d = Math.max(0, L.rayDist(this.lastSeen.x, this.lastSeen.z, ux, uz, want) - 0.6);
+    return { x: this.lastSeen.x + ux * d, z: this.lastSeen.z + uz * d };
+  }
+  // A search is a plan, not a wander: first the spot itself, then the hiding places around it, best guess first —
+  // the way you were going, the ones you used before, the kind you like — with a corner or two to look into.
+  private toSearch(c: { x: number; z: number }, from?: { x: number; z: number }) {
     if (this.state === 'chase') { if (this.R() < 0.5) this.say('v_ahi', 'Yo sé que estás ahí.', 0.8); else this.say('v_cama', 'Shhh… ¿Qué haces fuera de la cama?', 0.8); }
-    this.to('search'); this.searchCenter.set(c.x, 0, c.z); this.searchT = 9 + this.R() * 5 + this.game.director.phase * 4;
+    this.to('search'); this.searchCenter.set(c.x, 0, c.z);
+    this.searchT = 16 + this.R() * 6 + this.game.director.phase * 6;
+    this.spots = this.searchSpots(c, from); this.cur = null;
     this.setGoal(c);
   }
+  private searchSpots(c: { x: number; z: number }, from?: { x: number; z: number }) {
+    const G = this.game, L = G.level;
+    const hx = from ? c.x - from.x : 0, hz = from ? c.z - from.z : 0, hl = Math.hypot(hx, hz);
+    const hides = G.props.lockers.map(l => {
+      const d = Math.hypot(l.front.x - c.x, l.front.z - c.z);
+      if (d > 10 || G.time - (this.checkedAt.get(l.id) ?? -99) < 25) return null;
+      const dir = hl > 0.3 ? Math.max(0, ((l.front.x - c.x) * hx + (l.front.z - c.z) * hz) / (d * hl + 1e-6)) : 0;
+      const score = (1 / (1 + d * 0.35)) * (1 + 0.6 * dir) * (1 + 0.9 * (this.heat.get(l.id) ?? 0) + 0.35 * this.kindHeat[l.kind]) * (L.occlusion(c.x, c.z, l.front.x, l.front.z) > 0.7 ? 0.45 : 1);
+      return { x: l.front.x, z: l.front.z, l, score };
+    }).filter((h): h is { x: number; z: number; l: Locker; score: number } => !!h).sort((a, b) => b.score - a.score);
+    const out: { x: number; z: number; l?: Locker }[] = hides.slice(0, 3 + G.director.phase);
+    const ux = hl > 0.3 ? hx / hl : 0, uz = hl > 0.3 ? hz / hl : 0;
+    for (let k = 0; k < 2; k++) {
+      const p = L.randomNear(c.x + ux * 2.5, c.z + uz * 2.5, 2, 6, this.R);
+      if (p) out.splice(Math.min(out.length, 1 + k * 2), 0, p);
+    }
+    return out;
+  }
+  private continueSearch() {
+    if (this.state !== 'search') { this.state = 'search'; this.t = 0; this.looked = false; }
+    const next = this.spots.shift();
+    if (!next || this.searchT <= 0) { this.endSearch(); return; }
+    this.cur = next; this.setGoal(next.l ? next.l.front : next);
+  }
+  private endSearch() {
+    const G = this.game, phase = G.director.phase;
+    const p = 0.3 + 0.25 * phase + Math.min(0.2, (this.kindHeat.locker + this.kindHeat.bed) * 0.04);
+    if (G.time - this.lastAmbush > 45 && this.R() < p) { this.toAmbush(this.searchCenter); return; }
+    this.backToRound();
+  }
+  backToRound() { this.to('patrol'); this.nextPatrol(); }
+  // The false exit: she walks off humming as if the round went on, stops dead out of sight, waits in silence
+  // facing where she lost you, then comes back for one more look.
+  private toAmbush(c: THREE.Vector3) {
+    const L = this.game.level;
+    let away: { x: number; z: number } | null = null;
+    for (let k = 0; k < 14 && !away; k++) { const p = L.randomNear(c.x, c.z, 7, 11, this.R); if (p && L.blocked(c.x, c.z, p.x, p.z) && L.path(this.pos.x, this.pos.z, p.x, p.z)) away = p; }
+    away ??= L.randomNear(c.x, c.z, 7, 11, this.R);
+    if (!away) { this.backToRound(); return; }
+    this.lastAmbush = this.game.time;
+    this.to('ambush'); this.amb = { phase: 'away', t: 0, c: c.clone(), wait: 6 + this.R() * 5 + this.game.director.phase * 3 };
+    this.setGoal(away);
+  }
+  private thinkAmbush(dt: number) {
+    const a = this.amb;
+    if (!a) { this.backToRound(); return; }
+    a.t += dt;
+    if (a.phase === 'away') { if (this.arrived() || a.t > 10) { a.phase = 'wait'; a.t = 0; this.path = []; } }
+    else if (a.phase === 'wait') { this.faceTo(a.c.x, a.c.z, dt, 1.6); if (a.t > a.wait) { a.phase = 'back'; a.t = 0; this.setGoal(a.c); } }
+    else if (this.arrived() || a.t > 12) { const c = a.c; this.amb = null; this.toSearch(c); this.searchT = 8; this.spots = this.spots.slice(0, 2); }
+  }
+  private firstBed() { return this.round.find(r => r.bed) && (this.rdir > 0 ? this.round.find(r => r.bed) : [...this.round].reverse().find(r => r.bed)); }
+
+  // Her round, built from the floor itself: the main corridor, the ward bed by bed, the nurses' station, the north
+  // corridor, the dayroom and its television, and back. Once the fuse is gone she walks it to the linen room and
+  // reception instead, the way you will have to come back.
+  private buildRound() {
+    const G = this.game, L = G.level, phase = G.director.phase;
+    const at = (cx: number, cz: number, wait: number, act: string, tag: string, look?: [number, number, number?]): Stop =>
+      ({ ...L.center(cx, cz), wait, act, tag, look: look ? { x: look[0], y: look[2] ?? 1.3, z: look[1] } : undefined });
+    const ward = AREAS.find(a => a.id === 'ward')!;
+    const inWard = (v: THREE.Vector3) => { const cx = Math.floor(v.x / 2), cz = Math.floor(v.z / 2); return cx >= ward.x0 && cx <= ward.x1 && cz >= ward.z0 && cz <= ward.z1; };
+    const mx = ward.x0 + ward.x1 + 1, mz = ward.z0 + ward.z1 + 1, door = L.center(13, 10);
+    let beds = G.props.lockers.filter(l => l.kind === 'bed' && inWard(l.inside)).sort((a, b) => Math.atan2(a.inside.x - mx, a.inside.z - mz) - Math.atan2(b.inside.x - mx, b.inside.z - mz));
+    const near = beds.reduce((bi, b, i) => Math.hypot(b.front.x - door.x, b.front.z - door.z) < Math.hypot(beds[bi].front.x - door.x, beds[bi].front.z - door.z) ? i : bi, 0);
+    beds = [...beds.slice(near), ...beds.slice(0, near)];
+    const bedStops: Stop[] = beds.map(b => ({ x: b.front.x + b.out.x * 0.75, z: b.front.z + b.out.z * 0.75, wait: 1.7, act: 'check', tag: 'bed', bed: b, look: { x: b.inside.x * 0.6 + b.front.x * 0.4, y: 0.6, z: b.inside.z * 0.6 + b.front.z * 0.4 } }));
+    const corridorN = at(15, 7, 1.2, 'look', 'corridor', [31, 40]);
+    const station = at(8, 9, 3.2, 'write', 'station', [17.5, 21, 0.8]);
+    const corridorS = at(16, 15, 1.8, 'look', 'corridor', [31, 42]);
+    this.round = phase === 0
+      ? [corridorN, ...bedStops, station, at(9, 4, 1.0, 'look', 'north', [44, 9]), at(24, 4, 1.4, 'look', 'north', [51, 12]),
+        at(26, 9, 2.4, 'check', 'tv', [57, 19, 1.0]), at(19, 9, 1.4, 'look', 'dayroom', [35, 21]), corridorS]
+      : [corridorN, ...bedStops, station, at(6, 17, 2.6, 'check', 'linen', [15, 33, 1.1]), at(14, 20, 2.2, 'look', 'reception', [23, 41]), corridorS];
+    this.roundPhase = phase; this.ri = -1; this.offRound = true;
+  }
   nextPatrol() {
-    const P = this.game.player, L = this.game.level, phase = this.game.director.phase;
-    const opts = PATROL.map(p => L.center(p[0], p[1])).filter(c => Math.hypot(c.x - this.pos.x, c.z - this.pos.z) > 4);
-    opts.sort((a, b) => Math.hypot(a.x - P.pos.x, a.z - P.pos.z) - Math.hypot(b.x - P.pos.x, b.z - P.pos.z));
-    const pool = phase ? opts.slice(0, 5) : opts.slice(3);
-    const pick = pool[Math.floor(this.R() * pool.length)] ?? opts[0];
+    const phase = this.game.director.phase;
+    if (!this.round.length || this.roundPhase !== phase) this.buildRound();
     if (this.state !== 'leave') this.state = 'patrol';
-    this.setGoal(pick);
+    const n = this.round.length;
+    let i: number;
+    if (this.offRound || this.ri < 0) {
+      // coming back to the round from elsewhere: pick it up at the nearest stop, going the way she was going
+      i = 0; let bd = Infinity;
+      this.round.forEach((r, k) => { const d = Math.hypot(r.x - this.pos.x, r.z - this.pos.z); if (d < bd) { bd = d; i = k; } });
+      if (bd < 1.2) i = Math.max(0, Math.min(n - 1, i + this.rdir));
+      this.offRound = false;
+    } else {
+      i = this.ri + this.rdir;
+      if (i < 0 || i >= n) { this.rdir = -this.rdir; this.rounds++; i = this.ri + this.rdir; } // the next round, the other way
+    }
+    this.ri = i; this.stop = this.round[i];
+    this.setGoal(this.stop);
   }
 
   private faceTo(x: number, z: number, dt: number, rate: number) {
@@ -920,7 +1100,8 @@ export class Nurse {
     if (s === 'patrol' || s === 'lightoff') sp = this.hint ? 1.0 : 1.05;
     else if (s === 'leave') sp = 1.3;
     else if (s === 'investigate') sp = 1.4 + phase * 0.25;
-    else if (s === 'search') sp = 0.95;
+    else if (s === 'search') sp = 1.15 + phase * 0.15;
+    else if (s === 'ambush') sp = this.amb?.phase === 'back' ? 1.6 : this.amb?.phase === 'away' ? 1.05 : 0;
     else if (s === 'chase') sp = Math.min(3.35 + phase * 0.35 + this.t * 0.06, 3.9 + phase * 0.3);
     else if (s === 'inspect' && this.insp === 'approach') sp = this.sawEnter ? 2.6 : 1.3;
     else if (s === 'script') sp = this.script?.steps[this.script.i]?.speed ?? 1.2;
@@ -935,7 +1116,7 @@ export class Nurse {
     const ax = this.pos.x + (dx / d) * 0.95, az = this.pos.z + (dz / d) * 0.95;
     const c = L.at(ax, az);
     if (c?.kind === 'door' && !c.door!.open && !c.door!.barred) {
-      this.game.level.openDoor(c.door!, this.pos); this.doorWait = s === 'chase' ? 0.18 : 0.5;
+      this.game.level.openDoor(c.door!, this.pos); this.doorMem.set(c.door!.id, true); this.doorWait = s === 'chase' ? 0.18 : 0.5;
       const dp = L.center(c.cx, c.cz);
       const occ = L.occlusion(dp.x, dp.z, this.game.player.pos.x, this.game.player.pos.z);
       if (s === 'chase') this.game.audio.doorSlam({ x: dp.x, y: 1.2, z: dp.z }, occ); else this.game.audio.doorCreak({ x: dp.x, y: 1.2, z: dp.z }, occ);
@@ -953,7 +1134,9 @@ export class Nurse {
     this.lastD = d;
     if (this.stuckT > 1.6) {
       this.stuckT = 0;
-      if (this.goal) this.setGoal(this.goal);
+      const g = this.goal;
+      if (g && Math.hypot(g.x - this.pos.x, g.z - this.pos.z) < 1.6 && ++this.stuckN >= 2) { this.stuckN = 0; this.pi = this.path.length; return; }
+      if (g) this.setGoal(g);
       const P = this.game.player;
       if (!this.visibleFrom(P.pos.x, P.pos.z, P.fwd.x, P.fwd.z)) { const n = this.path[this.pi]; if (n) { this.pos.x += (n.x - this.pos.x) * 0.3; this.pos.z += (n.z - this.pos.z) * 0.3; } }
     }
@@ -972,7 +1155,7 @@ export class Nurse {
       else if (s === 'suspicious') this.play('listen');
       else if (this.looked) this.play('turn_head');
       else if (this.speed > 2.0) this.play('run', 0.2, this.speed / 3.6);
-      else if (this.speed > 0.12) this.play(s === 'investigate' || s === 'search' || this.hint ? 'walk_search' : 'walk', 0.3, Math.max(0.5, this.speed / 1.05));
+      else if (this.speed > 0.12) this.play(s === 'investigate' || s === 'search' || this.hint || (s === 'ambush' && this.amb?.phase === 'back') ? 'walk_search' : 'walk', 0.3, Math.max(0.5, this.speed / 1.05));
       else this.play('idle', 0.4);
       this.twitchT -= dt;
       if (this.twitchT <= 0 && this.speed < 0.2 && !this.game.settings.reduced && (s === 'idle' || s === 'patrol' || s === 'search')) {
@@ -1015,7 +1198,7 @@ export class Nurse {
     const occ = this.game.level.occlusion(this.pos.x, this.pos.z, P.eye.x, P.eye.z);
     A.nurse({ x: head.x, y: head.y, z: head.z }, occ);
     const hum = s === 'script' ? this.humWant
-      : s === 'patrol' || s === 'leave' || s === 'lightoff' || s === 'idle' || (s === 'search' && this.t > 3) || (s === 'inspect' && this.insp === 'turn');
+      : s === 'patrol' || s === 'leave' || s === 'lightoff' || s === 'idle' || (s === 'ambush' && this.amb?.phase === 'away');
     if (hum !== this.wasHumming) {
       A.hum(hum);
       if (!hum && this.dist < 16 && occ < 2) this.game.subtitle('El tarareo se detiene');
@@ -1088,9 +1271,7 @@ export class Nurse {
     this.t += dt;
     this.voiceCD -= dt;
     if (this.state === 'patrol' && this.dist < 19 && this.R() < dt * 0.05) {
-      const inWard = this.game.story.area?.id === 'ward' || (this.pos.x < 28 && this.pos.z > 12 && this.pos.z < 30);
       const pool: [string, string][] = [['v_visitas', 'Las visitas eran hasta las ocho.'], ['v_dormir', 'Ya es hora de dormir.'], ['v_rezo', 'Dios te salve, María, llena eres de gracia…']];
-      if (inWard) pool.push(['v_cuento', 'Cama uno, dormido. Cama dos, dormido. Cama tres…']);
       const [n, t] = pool[Math.floor(this.R() * pool.length)];
       this.say(n, t);
     }
@@ -1127,7 +1308,7 @@ export class Director {
     if (this.cooldown > 0) this.cooldown -= dt;
     this.hintT -= dt;
     if (this.hintT <= 0) {
-      this.hintT = this.phase ? 14 + this.R() * 10 : 32 + this.R() * 20;
+      this.hintT = this.phase ? 24 + this.R() * 14 : 55 + this.R() * 25;
       if (N.state === 'patrol' && this.cooldown <= 0 && !G.story.safe()) {
         const p = G.level.randomNear(P.pos.x, P.pos.z, this.phase ? 3 : 5, this.phase ? 8 : 11, this.R);
         if (p) N.hintTo(p);

@@ -5,28 +5,29 @@
 //  D  door (shut)   d  door (open)  J  barred door (opens from one side)
 //  X  sealed exit   =  power-locked door (later areas)   P  breaker panel
 //  B  bed   L  locker bank   K  desk   C  fuse cabinet   s  shelves
-//  h  chairs   o  gurney   t  trolley   v  TV cabinet
+//  h  chairs   o  gurney   t  trolley   v  TV cabinet   I  column   m  table and chairs
+//  x  evacuation barricade (beds and chairs piled across the way)
 export const MAP: string[] = [
   '################################',
   '################################',
   '################################',
-  '#=............................=#',
-  '#=............................=#',
+  '#=...x.....................x..=#',
+  '#=...x.....................x..=#',
   '#######d#######..########D######',
   '##........LL..#..#...........###',
-  '##B..........B#..#..........L###',
+  '##B..........B#..#..I.......L###',
   '##....t.......#.o#....hh.....###',
   '##B...........#..#..........v###',
-  '##......KK....D..D....hh.....###',
-  '##B...........#..#...........###',
-  '##............#t.#..o........###',
+  '##...I..KK.I..D..D....hh.....###',
+  '##B...........#..#..I........###',
+  '##............#t.#..o.....m..###',
   '##B..........B#..#......L....###',
   '##..L.L.......#..###############',
   '#####D#########..###############',
   '###s...C.######..###############',
   '###s....L######..###############',
-  '###s.....#............#.....####',
-  '###......J.K..........#.....####',
+  '###s.ss..#............#.....####',
+  '###......J.K.I....I...#.....####',
   '###......#.K......hh..D.....P###',
   '##########.K..........#.....####',
   '##########.....S..hh..#.....####',
@@ -76,7 +77,8 @@ export const FEAR = [
   { x: 4.6, z: 8 }, { x: 59.3, z: 8 }, { x: 12, z: 36 }, { x: 5, z: 27 },
 ];
 
-export const GLASS: [number, number][] = [[26, 4], [27, 3], [28, 4]];
+// broken glass across the north corridor before the dayroom door: the short way there is the loud one
+export const GLASS: [number, number][] = [[22, 4], [23, 3], [24, 4]];
 
 // Where the roof leaks (world metres). Each one is a stain on the ceiling, a puddle under it (s = its size), the
 // wall beside it wet from the ceiling down if there is one, and a drip at the ones marked.
@@ -87,7 +89,7 @@ export const LEAKS: { x: number; z: number; s: number; drip?: boolean }[] = [
 ];
 
 export const PATROL: [number, number][] = [
-  [4, 3], [12, 4], [20, 3], [27, 4], [22, 7], [26, 12], [19, 11],
+  [7, 3], [12, 4], [20, 3], [25, 4], [22, 7], [26, 11], [19, 11],
   [7, 7], [11, 12], [5, 12], [15, 7], [16, 14],
 ];
 
@@ -137,6 +139,24 @@ export const NOTES: NoteDef[] = [
 03:40  Alguien está tarareando en el pasillo.
                                      J. Ospina, camillero`,
     place: { cx: 11, cz: 20, surface: 'desk', oz: -0.2 },
+  },
+  {
+    id: 'ronda', title: 'Hoja de ronda · Pabellón B', kind: 'log',
+    body: `RONDA DE NOCHE. Cada media hora, en este orden:
+  1. Sala Santa Clara, cama por cama.
+  2. Estación de enfermería: anotar.
+  3. Pasillo norte, hasta la sala de estar.
+  4. Sala de estar: apagar el televisor.
+  5. Pasillo principal, y de vuelta al pabellón.
+La ronda siguiente se hace al revés.
+                                Hna. K.
+
+(a lápiz, otra letra)
+Mientras tararea, está en la ronda.
+Si se calla, te está buscando.
+Si se calla cerca, no salgas: a veces vuelve.
+Y si te llevas algo de su pabellón, la ronda llega hasta acá.`,
+    place: { cx: 11, cz: 21, surface: 'desk', oz: 0.1 },
   },
   {
     id: 'porter', title: 'Garabateado junto al tablero', kind: 'scrawl',

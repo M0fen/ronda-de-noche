@@ -164,7 +164,7 @@ export class Player {
       if (c?.kind === 'door' && !c.door!.open && !c.door!.barred) {
         this.bumpT += dt;
         if (this.bumpT > (this.sprinting ? 0 : 0.16)) {
-          this.bumpT = 0; this.game.level.openDoor(c.door!, this.pos);
+          this.bumpT = 0; this.game.level.openDoor(c.door!, this.pos); c.door!.touchedAt = G.time;
           const dp = L.center(c.cx, c.cz);
           if (this.sprinting) { A.doorSlam({ x: dp.x, y: 1.2, z: dp.z }, 0); this.noise(14, 1, 'slam', dp.x, dp.z); this.shake = Math.max(this.shake, 0.35); G.input.rumble(0.5, 0.3, 160); }
           else { A.doorCreak({ x: dp.x, y: 1.2, z: dp.z }, 0); this.noise(4, 0.45, 'door', dp.x, dp.z); }

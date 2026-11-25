@@ -120,7 +120,7 @@ export class Story {
     const c = L.center(d.cx, d.cz);
     if (d.barred) {
       if (!this.unbarSide(d)) { G.subtitle('Atrancada del otro lado.'); return; }
-      d.barred = false; G.level.openDoor(d, P.pos);
+      d.barred = false; G.level.openDoor(d, P.pos); d.touchedAt = G.time;
       d.pivot.getObjectByName('bar')!.visible = false;
       G.audio.doorSlam({ x: c.x, y: 1.2, z: c.z }, 0);
       G.noises.push({ x: c.x, z: c.z, r: 8, loud: 0.7, kind: 'door' });
@@ -133,6 +133,7 @@ export class Story {
       if (inside) return;
     }
     if (d.open) d.open = false; else L.openDoor(d, P.pos);
+    d.touchedAt = G.time;
     const slam = !d.open && P.sprinting;
     if (slam) { G.audio.doorSlam({ x: c.x, y: 1.2, z: c.z }, 0); G.noises.push({ x: c.x, z: c.z, r: 15, loud: 1, kind: 'slam' }); G.player.shake = 0.4; }
     else { G.audio.doorCreak({ x: c.x, y: 1.2, z: c.z }, 0); G.noises.push({ x: c.x, z: c.z, r: 4, loud: 0.45, kind: 'door' }); }
@@ -304,7 +305,7 @@ export class Story {
       { wait: 2.1, look: true, glint: 0.9, call: () => { N.humWant = false; G.audio.stinger(true); G.input.rumble(0.3, 0.6, 400); G.player.flinch(0.8); G.player.focusOn(N.rig.head.getWorldPosition(new THREE.Vector3()), 1.9, 0.75); G.bark('sight', '¿Y esa señora qué? No, no, no, no.', 1.1); } },
       { to: { x: 51, z: 7.2 }, speed: 1.35, call: () => { N.humWant = true; } },
       { to: { x: 51, z: 14 }, speed: 1.2 },
-    ], () => { G.director.hintT = 40; });
+    ], () => { G.director.hintT = 40; G.bark('hum', 'Tararea mientras hace la ronda. Si se calla… me está buscando.', 2.5); });
   }
 
   private startWardEvent() {
