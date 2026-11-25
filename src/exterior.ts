@@ -17,6 +17,20 @@ export type SetName = 'sj' | 'hm';
 
 const FONT = '"Arial Black", "Arial Bold", "Helvetica Neue", Arial, sans-serif';
 const lam = (o: THREE.MeshLambertMaterialParameters) => new THREE.MeshLambertMaterial(o);
+const wet = (o: THREE.MeshPhongMaterialParameters) => new THREE.MeshPhongMaterial({ shininess: 60, specular: 0x2c2c2c, ...o });
+/** smooth filtering for everything outside (the hospital inside keeps its chunky pixels) */
+function smoothAll(g: THREE.Object3D) {
+  const seen = new Set<THREE.Texture>();
+  g.traverse(o => {
+    const m = (o as THREE.Mesh).material as (THREE.Material & { map?: THREE.Texture; emissiveMap?: THREE.Texture; specularMap?: THREE.Texture }) | undefined;
+    if (!m) return;
+    for (const t of [m.map, m.emissiveMap, m.specularMap]) if (t && !seen.has(t)) { seen.add(t); t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 8; t.needsUpdate = true; }
+  });
+}
+/** where the rain stands in puddles: white is wet and shines */
+function puddleTex(seed: number) {
+  return T(256, 256, seed, (g, r) => { g.fillStyle = '#4a4a4a'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 26; i++) blotch(g, r, r() * 256, r() * 256, 10 + r() * 34, [235, 235, 235], 0.32, 7); noise(g, r, 256, 256, 30); });
+}
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 // ---- geometry kit: everything with the same material is merged into one mesh --------------------------------------
@@ -275,11 +289,11 @@ void main(){
   vec2 xz = position.xz * 15.0;
   vec2 rel = (fract((xz - uCam.xz) / 30.0 + 0.5) - 0.5) * 30.0;
   vec3 w = vec3(uCam.x + rel.x, uCam.y - 4.0 + fall * 14.0, uCam.z + rel.y);
-  w.y += aEnd * 0.42; w.x += aEnd * 0.03;
-  float a = 0.01 + uFlash * 0.16;
-  for (int i = 0; i < 4; i++) { float d = distance(w, uL[i]); a += uI[i] * 0.8 / (1.0 + d * d * 0.2); }
-  a *= smoothstep(2.5, 7.0, distance(w, uCam));
-  vA = min(a, 0.32);
+  w.y += aEnd * 0.28; w.x += aEnd * 0.02;
+  float a = 0.006 + uFlash * 0.1;
+  for (int i = 0; i < 4; i++) { float d = distance(w, uL[i]); a += uI[i] * 0.45 / (1.0 + d * d * 0.35); }
+  a *= smoothstep(3.0, 9.0, distance(w, uCam));
+  vA = min(a, 0.2);
   gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
 }`;
 const RAIN_F = /* glsl */ `varying float vA; void main(){ gl_FragColor = vec4(0.78, 0.84, 0.95, vA); }`;
@@ -372,8 +386,9 @@ export class Exterior {
   // ---- San Jorge: Carrera 4, the hospital's front and the Parque Gaitán --------------------------------------------
   private buildSJ(glint: THREE.Texture) {
     const k = new Kit(), R = rng(501);
-    const asphalt = lam({ map: T(256, 256, 11, (g, r) => { g.fillStyle = '#2a2b2c'; g.fillRect(0, 0, 256, 256); noise(g, r, 256, 256, 24); for (let i = 0; i < 50; i++) blotch(g, r, r() * 256, r() * 256, 8 + r() * 24, r() < 0.6 ? [16, 17, 19] : [60, 60, 58], 0.16, 6); for (let i = 0; i < 700; i++) { const v = 70 + r() * 70; g.fillStyle = rgba(v, v, v, 0.3); g.fillRect(r() * 256, r() * 256, 1, 1); } }) });
-    const pavers = lam({ map: T(256, 256, 12, (g, r) => {
+    const puddles = puddleTex(10);
+    const asphalt = wet({ specularMap: puddles, specular: 0x5a5a5a, shininess: 80, map: T(256, 256, 11, (g, r) => { g.fillStyle = '#2a2b2c'; g.fillRect(0, 0, 256, 256); noise(g, r, 256, 256, 24); for (let i = 0; i < 50; i++) blotch(g, r, r() * 256, r() * 256, 8 + r() * 24, r() < 0.6 ? [16, 17, 19] : [60, 60, 58], 0.16, 6); for (let i = 0; i < 700; i++) { const v = 70 + r() * 70; g.fillStyle = rgba(v, v, v, 0.3); g.fillRect(r() * 256, r() * 256, 1, 1); } }) });
+    const pavers = wet({ specularMap: puddles, specular: 0x4a3a30, shininess: 55, map: T(256, 256, 12, (g, r) => {
       g.fillStyle = '#3a1e16'; g.fillRect(0, 0, 256, 256);
       for (let row = 0; row < 16; row++) for (let col = -1; col < 9; col++) {
         const x = col * 32 + (row % 2) * 16, y = row * 16, kk = r() < 0.07 ? 0.72 : 1;
@@ -382,14 +397,14 @@ export class Exterior {
       noise(g, r, 256, 256, 18); for (let i = 0; i < 36; i++) blotch(g, r, r() * 256, r() * 256, 6 + r() * 16, [26, 18, 14], 0.14, 5);
     }) });
     const grass = lam({ map: T(128, 128, 13, (g, r) => { g.fillStyle = '#1b2614'; g.fillRect(0, 0, 128, 128); for (let i = 0; i < 1500; i++) { const v = r(); g.fillStyle = rgba(26 + v * 40, 40 + v * 52, 18 + v * 20, 0.6); g.fillRect(r() * 128, r() * 128, 1, 2 + r() * 2); } for (let i = 0; i < 10; i++) blotch(g, r, r() * 128, r() * 128, 8 + r() * 14, [50, 42, 28], 0.14, 5); }) });
-    const walk = lam({ map: T(256, 256, 14, (g, r) => { g.fillStyle = '#5f5d58'; g.fillRect(0, 0, 256, 256); for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { const v = 92 + r() * 22; g.fillStyle = rgba(v, v * 0.98, v * 0.94); g.fillRect(x * 64 + 1, y * 64 + 1, 62, 62); } noise(g, r, 256, 256, 16); for (let i = 0; i < 18; i++) blotch(g, r, r() * 256, r() * 256, 6 + r() * 18, [38, 36, 32], 0.14, 5); }) });
+    const walk = wet({ specularMap: puddles, specular: 0x3a3a3a, shininess: 60, map: T(256, 256, 14, (g, r) => { g.fillStyle = '#5f5d58'; g.fillRect(0, 0, 256, 256); for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { const v = 92 + r() * 22; g.fillStyle = rgba(v, v * 0.98, v * 0.94); g.fillRect(x * 64 + 1, y * 64 + 1, 62, 62); } noise(g, r, 256, 256, 16); for (let i = 0; i < 18; i++) blotch(g, r, r() * 256, r() * 256, 6 + r() * 18, [38, 36, 32], 0.14, 5); }) });
     const brick = lam({ map: T(128, 128, 15, (g, r) => { g.fillStyle = '#5a2a1e'; g.fillRect(0, 0, 128, 128); for (let row = 0; row < 16; row++) for (let col = -1; col < 5; col++) { const x = col * 32 + (row % 2) * 16; g.fillStyle = rgba(132 + r() * 30, 58 + r() * 16, 40 + r() * 12); g.fillRect(x + 1, row * 8 + 1, 30, 6); } noise(g, r, 128, 128, 16); }) });
     const concrete = lam({ color: 0x8c8a84 });
     const dark = lam({ color: 0x15171a });
     const white = lam({ color: 0xd6d4cc });
     const paint = (col: number) => lam({ color: col, emissive: 0x000000 });
     const lineW = lam({ color: 0xcfcdc4 }), lineY = lam({ color: 0xc9a227 });
-    const bronze = lam({ color: 0x4a4636, emissive: 0x060504 });
+    const bronze = wet({ color: 0x4f4a38, emissive: 0x060504, specular: 0x8a7a52, shininess: 38 });
     const bark = lam({ map: barkTex(16) });
     const leaves = [lam({ map: leafTex(17, [38, 56, 30]), alphaTest: 0.5, side: THREE.DoubleSide }), lam({ map: leafTex(18, [30, 48, 28], 0.9), alphaTest: 0.5, side: THREE.DoubleSide }), lam({ map: leafTex(19, [46, 60, 34], 1.1), alphaTest: 0.5, side: THREE.DoubleSide })];
     const tyre = lam({ color: 0x0c0c0c }), glassCar = lam({ color: 0x0d1116 });
@@ -459,12 +474,12 @@ export class Exterior {
       k.box(concrete, 0.3, 0.42, 0.4, x - Math.cos(ry) * 0.7, 0.36, z + Math.sin(ry) * 0.7, { ry }); k.box(concrete, 0.3, 0.42, 0.4, x + Math.cos(ry) * 0.7, 0.36, z - Math.sin(ry) * 0.7, { ry });
       k.box(wood, 1.8, 0.07, 0.45, x, 0.6, z, { ry });
     }
-    const pole = lam({ color: 0x263028 }), globe = lam({ color: 0x55585a, emissive: 0x000000 });
-    for (const [x, z] of [[-11.5, 24], [-4.5, 24], [-17, 34], [1, 34], [-11.5, 44], [-4.5, 44], [-30, 10], [14, 10]]) { k.cyl(pole, 0.06, 0.09, 4.4, x, 0.15, z, 6); k.box(pole, 0.34, 0.08, 0.34, x, 4.6, z); k.block(globe, 0.3, 0.42, 0.3, x, 4.64, z); k.box(pole, 0.38, 0.06, 0.38, x, 5.1, z); }
+    const pole = lam({ color: 0x263028 }), globe = lam({ color: 0xffd8a0, emissive: 0xffa24a, emissiveIntensity: 1.7 });
+    const halo = (x: number, y: number, z: number, s: number, col = 0xff9a40, o = 0.8) => { const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint, color: col, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: o })); h.scale.setScalar(s); h.position.set(x, y, z); this.sj.add(h); };
+    for (const [x, z] of [[-10.2, 11.0], [-11.5, 24], [-4.5, 24], [-17, 34], [1, 34], [-11.5, 44], [-4.5, 44], [-30, 10], [14, 10]]) { k.cyl(pole, 0.06, 0.09, 4.4, x, 0.15, z, 6); k.box(pole, 0.34, 0.08, 0.34, x, 4.6, z); k.block(globe, 0.3, 0.42, 0.3, x, 4.64, z); k.box(pole, 0.38, 0.06, 0.38, x, 5.1, z); halo(x, 4.85, z, 2.6); }
     // the street's lamps on concrete poles
-    for (const x of [-64, -42, -20, 2, 24, 46]) { k.cyl(concrete, 0.1, 0.16, 9, x, 0.15, 5.2, 6); k.box(concrete, 0.12, 0.12, 2.2, x, 9.0, 4.2); k.box(lam({ color: 0x3c3e40 }), 0.4, 0.14, 0.7, x, 8.9, 3.1); }
-    const sodium = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.6), new THREE.MeshBasicMaterial({ color: 0xffa040 })); sodium.position.set(-64, 8.82, 3.1); this.sj.add(sodium);
-    const sodHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint, color: 0xff9a40, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.85 })); sodHalo.scale.setScalar(4.5); sodHalo.position.set(-64, 8.7, 3.1); this.sj.add(sodHalo);
+    const sodium = new THREE.MeshBasicMaterial({ color: 0xffb060 });
+    for (const x of [-64, -42, -20, 2, 24, 46]) { k.cyl(concrete, 0.1, 0.16, 9, x, 0.15, 5.2, 6); k.box(concrete, 0.12, 0.12, 2.2, x, 9.0, 4.2); k.box(lam({ color: 0x3c3e40 }), 0.4, 0.14, 0.7, x, 8.9, 3.1); k.box(sodium, 0.34, 0.04, 0.6, x, 8.82, 3.1); halo(x, 8.7, 3.1, 4.8, 0xff9a40, 0.85); }
 
     // motorbikes left by the park
     const mb = lam({ color: 0x1d1f22 }), mbr = lam({ color: 0x6a1714 });
@@ -484,7 +499,7 @@ export class Exterior {
     const side = (col: number) => lam({ color: col });
     // A: the old building from the forties, five floors of windows
     {
-      const p = new FP(28, 18, 20, 41, '#c9c0a8');
+      const p = new FP(28, 18, 36, 41, '#c9c0a8');
       p.rect(0, 0, 28, 1.25, '#7d796f');
       for (let f = 0; f < 5; f++) {
         const y = 1.6 + f * 3.25; p.rect(0, y - 0.32, 28, 0.2, '#ada38b');
@@ -495,7 +510,7 @@ export class Exterior {
     }
     // B: an ochre wing with ribbon windows
     {
-      const p = new FP(16, 12, 20, 42, '#a35d2b');
+      const p = new FP(16, 12, 36, 42, '#a35d2b');
       for (let f = 0; f < 3; f++) { const y = 1.2 + f * 3.7; for (let x = 0.6; x < 15.4; x += 1.25) p.win(x, y, 1.15, 1.7, { frame: '#3a3633', glass: '#121820', fw: 0.04 }); p.rect(0, y + 2.1, 16, 0.25, '#8f4f22'); }
       for (let x = 0; x < 16; x += 1.6) p.rect(x, 0, 0.03, 12, 'rgba(60,30,12,0.35)'); // panel joints
       p.grime(40, [40, 24, 12], 0.1, 1.2);
@@ -503,7 +518,7 @@ export class Exterior {
     }
     // C: the main entrance — ochre cladding, the big glass, the green stone, the round sign
     {
-      const p = new FP(14, 16, 32, 43, '#a8612c');
+      const p = new FP(14, 16, 52, 43, '#a8612c');
       for (let y = 0; y < 16; y += 0.9) for (let x = 0; x < 14; x += 1.2) { const v = 0.92 + p.R() * 0.14; p.rect(x + 0.02, y + 0.02, 1.16, 0.86, shade('#a8612c', v)); }
       // ground floor: recessed lobby, glass and steel
       p.rect(0, 0, 14, 3.7, '#2c2a28');
@@ -562,7 +577,7 @@ export class Exterior {
     glow.position.set(-8.75, 9.55, -7.18); this.sj.add(glow);
     // D: the yellow block with the round sign on white
     {
-      const p = new FP(6, 13, 24, 44, '#c08b3a');
+      const p = new FP(6, 13, 44, 44, '#c08b3a');
       for (let f = 0; f < 3; f++) for (const x of [0.6, 3.4]) p.win(x, 1.4 + f * 3.8, 2.0, 1.8, { frame: '#e6e0cf', glass: '#141a22', sill: '#d7cfb8', runs: true });
       p.rect(1.6, 9.2, 2.8, 2.8, '#ebe7dd');
       p.g.fillStyle = '#2f6b4f'; p.g.beginPath(); p.g.arc(p.X(3), p.Y(10.95), 0.75 * p.S, 0, Math.PI * 2); p.g.fill();
@@ -573,7 +588,7 @@ export class Exterior {
     }
     // E: Urgencias — a low white front behind the ambulance bay, its canopy lettered in red
     {
-      const p = new FP(18, 8, 24, 45, '#d4d1c8');
+      const p = new FP(18, 8, 40, 45, '#d4d1c8');
       p.rect(0, 0, 18, 0.5, '#8d8a82');
       p.win(1.2, 0.5, 3.6, 2.8, { frame: '#9b9b98', glass: '#121a20', mull: 2, lit: 'rgba(150,180,200,0.55)' }); // the sliding doors, lit by the generator
       for (let x = 6; x < 17; x += 2.2) p.win(x, 1.1, 1.6, 1.6, { frame: '#c8c4b8', glass: '#141a20', bars: '#55575a' });
@@ -582,20 +597,20 @@ export class Exterior {
       fac(p, 6, 0.15, -7.99, 1.1); k.block(side(0xc6c3ba), 18, 8, 12, 15, 0.15, -14.01);
       // the canopy on its two columns
       k.box(white, 13, 0.35, 4.2, 13, 4.3, -6.0);
-      const fp = new FP(13, 0.9, 48, 46, '#e2e0d9'); fp.text('URGENCIAS', 6.5, 0.2, 0.62, '#a5221b', { align: 'center', spacing: 0.08 }); fp.grime(10, [40, 38, 32], 0.1, 0.4);
-      k.plane(lam({ map: fp.done().map }), 13, 0.9, 13, 4.5, -3.89);
+      const fp = new FP(13, 0.9, 80, 46, '#e2e0d9'); fp.text('URGENCIAS', 6.5, 0.2, 0.62, '#a5221b', { align: 'center', spacing: 0.08, glow: 'rgba(255,70,50,0.95)' }); fp.grime(10, [40, 38, 32], 0.1, 0.4);
+      { const t = fp.done(); k.plane(lam({ map: t.map, emissiveMap: t.emap, emissive: 0xffffff, emissiveIntensity: 1.3 }), 13, 0.9, 13, 4.5, -3.89); }
       k.box(white, 13, 0.9, 0.2, 13, 4.5, -4.0);
       for (const x of [7, 19]) k.cyl(white, 0.16, 0.16, 4.2, x, 0.0, -4.3, 10);
     }
     // F: the yellow buildings on east, and the tall blocks behind
     {
-      const p = new FP(36, 11, 16, 47, '#c99c45');
+      const p = new FP(36, 11, 28, 47, '#c99c45');
       for (let f = 0; f < 3; f++) for (let x = 0.8; x < 35; x += 2.4) p.win(x, 1.3 + f * 3.3, 1.5, 1.6, { frame: '#efe9d8', glass: '#141a22', sill: '#ddd3bb', runs: true });
       p.grime(50, [50, 36, 16], 0.09, 1.4);
       fac(p, 24, 0.15, -7.99); k.block(side(0xb68c3e), 36, 11, 12, 42, 0.15, -14.01);
     }
     {
-      const p = new FP(34, 27, 12, 48, '#b9b2a0');
+      const p = new FP(34, 27, 20, 48, '#b9b2a0');
       for (let f = 0; f < 8; f++) for (let x = 1; x < 33; x += 2.1) p.win(x, 1.6 + f * 3.2, 1.3, 1.6, { frame: '#d6d0c0', glass: '#10141a', fw: 0.06, lit: (f === 5 && x > 20 && x < 23) || (f === 2 && x < 3) ? 'rgba(150,20,14,0.6)' : undefined });
       p.grime(60, [40, 36, 30], 0.08, 2);
       fac(p, -24, 0.15, -21.0); k.block(side(0xa8a190), 34, 27, 14, -7, 0.15, -28.01);
@@ -618,7 +633,7 @@ export class Exterior {
 
     // the city round the park: brick buildings, a shop shutter, here and there a candle
     const brickFront = (w: number, h: number, seed: number) => {
-      const p = new FP(w, h, 14, seed, '#7d3925');
+      const p = new FP(w, h, 24, seed, '#7d3925');
       const g = p.g; for (let y = 0; y < h * p.S; y += 3) { g.fillStyle = 'rgba(40,16,10,0.25)'; g.fillRect(0, y, w * p.S, 1); }
       noise(g, p.R, p.c.width, p.c.height, 12);
       p.rect(0, 0, w, 3.2, '#5f5f60'); for (let x = 0.2; x < w; x += 0.18) p.rect(x, 0.2, 0.04, 2.8, 'rgba(30,30,32,0.5)');
@@ -637,6 +652,7 @@ export class Exterior {
 
     k.build(this.sj);
     this.sky(this.sj, [78, 58, 44], 91, 260, 0.6);
+    smoothAll(this.sj);
     return { door, win: { fig, glow, on: true } };
   }
 
@@ -768,6 +784,7 @@ export class Exterior {
 
     k.build(this.hm);
     this.sky(this.hm, [30, 38, 52], 92, 380, 0.35);
+    smoothAll(this.hm);
     return { l: dl, r: dr, k: 0, want: 0, inside, colours };
   }
 
@@ -855,12 +872,13 @@ export class Exterior {
     };
     const spot = P.light;
     if (w === 'sj') {
-      hemi.color.setHex(0x1c2638); hemi.groundColor.setHex(0x0c0b0a); hemi.intensity = 0.4 + f * (red ? 0.8 : 2.4);
+      hemi.color.setHex(0x22304a); hemi.groundColor.setHex(0x16100a); hemi.intensity = 0.5 + f * (red ? 0.8 : 2.4);
       // the moon, behind cloud, from over the park's south-west
       this.at('sj', -70, 80, 110, spot.position); this.at('sj', -6, 0, -8, P.lightTarget.position);
-      spot.color.setHex(0x8ea4c8); spot.intensity = 0.62; spot.distance = 0; spot.decay = 0; spot.angle = 0.55; spot.penumbra = 1;
+      spot.color.setHex(0x8aa4d0); spot.intensity = 0.8; spot.distance = 0; spot.decay = 0; spot.angle = 0.55; spot.penumbra = 1;
       // lightning: high over the park and over the hospital
-      put(storm[0], 'sj', -12, 40, 30, 0xcad8ff, f * 3.2, 0, 0); put(storm[1], 'sj', 18, 36, -26, 0xcad8ff, f * 2.0, 0, 0);
+      put(storm[0], 'sj', -12, 40, 30, 0xcad8ff, f * 4.0, 0, 0);
+      put(storm[1], 'sj', 2, 8.6, 3.1, 0xff9a48, 70, 28);                // the street lamps on the Carrera 4
       // the ambulance's light bar: two reds, turning
       const ph = this.t * 3.1;
       const b0 = Math.pow(Math.max(0, Math.sin(ph)), 3), b1 = Math.pow(Math.max(0, Math.sin(ph + Math.PI)), 3);
@@ -869,14 +887,14 @@ export class Exterior {
         put(em[0], 'sj', 10.55 + 1.2 * Math.sin(ph), 2.9, -6.65 + 2.2 * Math.cos(ph), 0xff1a10, 14 * b0 * bk, 26); put(em[1], 'sj', 10.55 - 1.2 * Math.sin(ph), 2.9, -5.55 - 2.2 * Math.cos(ph), 0xff1a10, 14 * b1 * bk, 26);
         put(em[2], 'sj', 9.2, 3.4, -6.4, 0xcfe2ff, 2.6, 9);                 // the generator's tube at Urgencias
         put(em[3], 'sj', -7.2, 3.0, -12.6, 0xff2a18, 6.5, 12);               // the red battery lamp in the lobby
-        put(em[4], 'sj', -64, 8.5, 3.4, 0xff9440, 22, 30);                  // one street lamp on another circuit
-        put(P.bounce, 'sj', 0, 0, 0, 0x8fa2c4, 0, 1);
+        put(em[4], 'sj', -10.2, 4.75, 11.0, 0xff9a48, 18, 16);              // the park lamp by the bust
+        put(P.bounce, 'sj', -20, 8.6, 3.1, 0xff9a48, 70, 28);
       }
       for (let i = 0; i < 2; i++) this.sjBeacon[i].color.setRGB(0.2 + 3.0 * (i ? b1 : b0) * bk, 0.02, 0.02);
       // the candle in the window
       const cand = this.sjWindow.on ? 0.85 + 0.15 * Math.sin(this.t * 13) * Math.sin(this.t * 7.3) : 0;
-      put(lamps[0], 'sj', -8.7, 9.6, -8.2, 0xff9a48, 1.6 * cand, 6); put(lamps[1], 'sj', 0, -50, 0, 0, 0, 1);
-      put(candle, 'sj', 0, -50, 0, 0, 0, 1);
+      if (this.sjWindow.on) put(lamps[0], 'sj', -8.7, 9.6, -8.2, 0xff9a48, 1.6 * cand, 6); else put(lamps[0], 'sj', -42, 8.6, 3.1, 0xff9a48, 70, 28);
+      put(lamps[1], 'sj', -4.5, 4.75, 24, 0xff9a48, 15, 15); put(candle, 'sj', -11.5, 4.75, 24, 0xff9a48, 15, 15);
       this.sjWindow.glow.visible = cand > 0; (this.sjWindow.glow.material as THREE.MeshBasicMaterial).opacity = 0.65 * cand;
       this.sjWindow.fig.visible = this.sjWindow.on;
       // the sky flashes with the strike
@@ -912,8 +930,10 @@ export class Exterior {
     if (this.rain.mesh.visible) {
       const u = this.rain.mat.uniforms; u.uCam.value.copy(G.camera.position); u.uTime.value = this.t * 0.9; u.uFlash.value = f;
       const L = u.uL.value as THREE.Vector3[], I = u.uI.value as number[];
-      const pick = [em[0], em[1], em[4], lamps[0]];
-      pick.forEach((l, i) => { L[i].copy(l.position); I[i] = Math.min(1, l.intensity / 9); });
+      const cam = G.camera.position;
+      const pool = [em[0], em[1], em[4], lamps[0], lamps[1], candle, storm[1], P.bounce].filter(Boolean) as THREE.PointLight[];
+      pool.sort((a, b) => a.position.distanceToSquared(cam) - b.position.distanceToSquared(cam));
+      for (let i = 0; i < 4; i++) { const l = pool[i]; L[i].copy(l.position); I[i] = Math.min(1, l.intensity / (l.distance > 20 ? 40 : 9)); }
     }
     void t;
   }

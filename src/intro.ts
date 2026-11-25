@@ -103,7 +103,7 @@ export class Intro {
       c.tFov = fov;
       if (moving) { this.stepT -= dt; if (this.stepT <= 0) { this.stepT = 0.52; A.step(this.tmp.set(c.eye.x, 0, c.eye.z), 0, 0.8, false, z < 6.5 && z > -4.6 ? '' : 'reception'); } }
       this.at('strike3', 13.45, () => G.storm.strike(0.6));
-      this.at('line1', 12.2, () => this.sub('Con el racionamiento, la luz se fue hace horas.', 3.8, 'think'));
+      this.at('line1', 12.2, () => this.sub('En el hospital, la luz se fue hace horas.', 3.8, 'think'));
       this.at('dog2', 15.4, () => A.bark(this.tmp.copy(this.p(30, 1, 44)), 0.7));
       this.at('line2', 18.0, () => this.sub('Alguien tiene que volver a prenderla.', 3.0, 'think'));
       this.at('door', 19.0, () => A.doorCreakAt(this.tmp.copy(this.p(-6.5, 1.2, -7.2))));
